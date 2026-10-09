@@ -28,6 +28,9 @@ export const metadata: Metadata = {
   title: { default: "La Coquette du Faso — Réservation", template: "%s · La Coquette du Faso" },
   description: "Démonstration de l'application de réservation du salon La Coquette du Faso, Ouagadougou.",
   icons: { icon: "/brand/logo.png" },
+  // Demande aux moteurs de recherche de ne pas indexer la démo. Ce n'est PAS un contrôle d'accès :
+  // les pages restent lisibles par toute personne qui connaît l'adresse.
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
