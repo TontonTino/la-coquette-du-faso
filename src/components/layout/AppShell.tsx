@@ -63,9 +63,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="La Coquette du Faso, accueil">
             <Logo size={40} priority />
-            <span className="hidden min-w-0 leading-tight min-[380px]:block">
+            <span className="hidden min-w-0 leading-tight whitespace-nowrap sm:block">
               <span className="block font-display text-lg font-semibold tracking-wide text-or">La Coquette du Faso</span>
               <span className="block text-[10px] tracking-[0.22em] text-white/60 uppercase">Salon de beauté · Ouagadougou</span>
+            </span>
+            <span className="font-display text-base leading-tight font-semibold text-or sm:hidden">
+              La Coquette
+              <br />
+              du Faso
             </span>
           </Link>
           <nav aria-label="Espaces" className="ml-auto flex rounded-full border border-or/30 bg-white/5 p-0.5 text-xs sm:text-sm">

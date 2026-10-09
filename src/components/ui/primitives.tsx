@@ -5,14 +5,14 @@ export function Card({ children, className = "", as: Tag = "div" }: { children: 
   return <Tag className={`rounded-2xl border border-trait/80 bg-white shadow-carte ${className}`}>{children}</Tag>;
 }
 
-export function SectionTitle({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: ReactNode }) {
+export function SectionTitle({ id, eyebrow, title, action }: { id?: string; eyebrow?: string; title: string; action?: ReactNode }) {
   return (
     <div className="mb-4 flex items-end justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         {eyebrow && <p className="mb-1 text-[11px] font-medium tracking-[0.18em] text-or-fonce uppercase">{eyebrow}</p>}
-        <h2 className="font-display text-[26px] leading-tight font-semibold text-noir">{title}</h2>
+        <h2 id={id} className="font-display text-[26px] leading-tight font-semibold text-noir">{title}</h2>
       </div>
-      {action}
+      {action && <div className="shrink-0 pb-1">{action}</div>}
     </div>
   );
 }
@@ -95,6 +95,19 @@ export function PageSkeleton() {
       <Skeleton className="h-28 w-full" />
       <Skeleton className="h-28 w-full" />
       <Skeleton className="h-28 w-full" />
+    </div>
+  );
+}
+
+/** Indicateur chiffré, à placer dans une liste <dl>. */
+export function Stat({ label, value, hint, highlight }: { label: string; value: string | number; hint?: string; highlight?: boolean }) {
+  return (
+    <div className={`flex flex-col-reverse rounded-2xl border px-2 py-3 text-center ${highlight ? "border-or bg-or-pale" : "border-trait bg-white"}`}>
+      <dt className="mt-1 text-[10.5px] leading-tight text-sourdine">
+        {label}
+        {hint && <span className="block opacity-80">{hint}</span>}
+      </dt>
+      <dd className="font-display text-2xl leading-none font-bold text-noir">{value}</dd>
     </div>
   );
 }

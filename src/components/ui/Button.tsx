@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-type Variant = "or" | "noir" | "contour" | "discret" | "danger";
+type Variant = "or" | "noir" | "contour" | "contour-clair" | "discret" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
@@ -11,6 +11,8 @@ const variants: Record<Variant, string> = {
   or: "bg-or text-noir hover:bg-[#d4b25e] shadow-or",
   noir: "bg-noir text-white hover:bg-noir-doux",
   contour: "border border-noir/15 bg-white text-noir hover:border-or hover:bg-creme",
+  /** Contour pour fond noir. */
+  "contour-clair": "border border-white/30 bg-transparent text-white hover:border-or hover:bg-white/10",
   discret: "text-encre hover:bg-noir/5",
   danger: "border border-rouge/30 bg-white text-rouge hover:bg-rouge-pale",
 };
