@@ -12,7 +12,6 @@ export default function SalonLayout({ children }: LayoutProps<"/salon">) {
   return (
     <div className="flex min-h-dvh flex-col bg-atelier text-encre">
       <header className="sticky top-0 z-30 bg-noir text-white">
-        <div className="bande-faso" aria-hidden />
         <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <Logo size={34} />

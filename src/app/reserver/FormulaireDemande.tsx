@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Champ, Choix, classeInput } from "@/app/salon/ui";
 import { Button } from "@/components/ui/Button";
 import { IconCheck, IconInfini, IconSun, IconSunrise, IconSunset } from "@/components/ui/icons";
@@ -48,6 +48,13 @@ export function FormulaireDemande({
   modeleInitial: string;
 }) {
   const router = useRouter();
+  const rangee = useRef<HTMLDivElement>(null);
+  // Modèle choisi depuis l'accueil : on le fait venir au centre de la rangée de photos.
+  useEffect(() => {
+    if (!modeleInitial) return;
+    const el = rangee.current?.querySelector<HTMLElement>(`[data-modele="${modeleInitial}"]`);
+    if (el && rangee.current) rangee.current.scrollLeft = el.offsetLeft - (rangee.current.clientWidth - el.clientWidth) / 2;
+  }, [modeleInitial]);
   const [enCours, start] = useTransition();
   const [modele, setModele] = useState(modeleInitial);
   const [typeChoisi, setType] = useState(typeInitial);
@@ -106,58 +113,74 @@ export function FormulaireDemande({
   };
 
   const dateMax = addDays(aujourdhui, JOURS_RESERVABLES);
+  const modelesVisibles = type ? salon.modeles.filter((m) => m.categorieId === type) : salon.modeles;
   let n = 0;
 
   return (
     <div className="mt-4">
-      {salon.modeles.length > 0 && (
-        <Etape n={++n} titre="Choisissez un modèle" aide="Touchez une photo. Vous avez votre propre photo ? Choisissez le type juste en dessous.">
-          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
-            {salon.modeles.map((m) => {
-              const on = m.id === modele;
-              return (
-                <button key={m.id} type="button" aria-pressed={on} onClick={() => setModele(on ? "" : m.id)} className="group text-left">
-                  <span
-                    className={`relative block overflow-hidden rounded-[1.25rem] transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : ""}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
-                    <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />
-                    {on && (
-                      <span className="absolute top-2 right-2 flex size-8 animate-apparition items-center justify-center rounded-full bg-or text-noir shadow-md" aria-hidden>
-                        <IconCheck width={18} height={18} strokeWidth={2.4} />
+      <Etape
+        n={++n}
+        titre="Quelle coiffure ?"
+        aide={salon.modeles.length ? "Choisissez le type, puis un modèle en photo si vous voulez." : undefined}
+      >
+        <Choix
+          libelle="Type de coiffure"
+          options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
+          valeur={type}
+          onChange={(v) => {
+            setType(v);
+            // Un modèle d'un autre type n'a plus de sens : on le retire.
+            if (modeleChoisi && v && modeleChoisi.categorieId !== v) setModele("");
+          }}
+        />
+        {salon.modeles.length > 0 && (
+          <div className="mt-5">
+            <p className="mb-2 flex items-baseline justify-between text-sm">
+              <span className="font-medium">{type ? `Modèles ${nomType ?? ""}` : "Tous nos modèles"}</span>
+              <span className="text-xs text-sourdine">
+                {modelesVisibles.length} photo{modelesVisibles.length > 1 ? "s" : ""}
+                {modelesVisibles.length > 2 ? ", faites glisser" : ""}
+              </span>
+            </p>
+            {modelesVisibles.length === 0 ? (
+              <p className="rounded-2xl bg-sable/70 px-4 py-3 text-sm text-sourdine">
+                Pas encore de photo pour ce type. Vous pourrez envoyer la vôtre sur WhatsApp juste après.
+              </p>
+            ) : (
+              <div ref={rangee} role="group" aria-label="Modèles" className="defile-x relative -mx-4 gap-3 px-4 pb-1">
+                {modelesVisibles.map((m) => {
+                  const on = m.id === modele;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      aria-pressed={on}
+                      data-modele={m.id}
+                      onClick={() => setModele(on ? "" : m.id)}
+                      className="group w-[42%] text-left sm:w-[28%] lg:w-[22%]"
+                    >
+                      <span
+                        className={`relative block overflow-hidden rounded-[1.25rem] bg-sable transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : ""}`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
+                        <img src={m.photoUrl} alt={m.nom} loading="lazy" draggable={false} className="aspect-[4/5] w-full object-cover" />
+                        {on && (
+                          <span className="absolute top-2 right-2 flex size-8 animate-apparition items-center justify-center rounded-full bg-or text-noir shadow-md" aria-hidden>
+                            <IconCheck width={18} height={18} strokeWidth={2.4} />
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  <span className={`mt-2 block text-sm leading-snug font-semibold ${on ? "text-or-fonce" : ""}`}>{m.nom}</span>
-                  {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
-                  {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
-                </button>
-              );
-            })}
+                      <span className={`mt-2 block text-sm leading-snug font-semibold ${on ? "text-or-fonce" : ""}`}>{m.nom}</span>
+                      {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
+                      {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {!modeleChoisi && (
-            <div className="mt-6 rounded-2xl bg-sable/70 p-4">
-              <p className="mb-3 text-sm font-medium">Autre coiffure : quel type ?</p>
-              <Choix
-                libelle="Type de coiffure"
-                options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
-                valeur={typeChoisi}
-                onChange={setType}
-              />
-            </div>
-          )}
-        </Etape>
-      )}
-      {salon.modeles.length === 0 && (
-        <Etape n={++n} titre="Quelle coiffure ?">
-          <Choix
-            libelle="Type de coiffure"
-            options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
-            valeur={typeChoisi}
-            onChange={setType}
-          />
-        </Etape>
-      )}
+        )}
+      </Etape>
 
       <Etape n={++n} titre="Quel jour ?">
         <div role="group" aria-label="Jour" className="defile-x -mx-4 gap-2 px-4 pb-1">

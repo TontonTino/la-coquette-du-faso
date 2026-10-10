@@ -19,7 +19,7 @@
   /* Fond lumineux des pages clientes : laisse les photos ressortir. */
   --color-lin: #fffdf9;
   --color-sable: #f3ede2;
-  /* Indigo du Faso Dan Fani : bande tissée et prestations en cours. */
+  /* Indigo : prestations en cours (espace salon). */
   --color-indigo: #24315f;
   --color-indigo-pale: #e8ebf5;
   /* Fond de travail de l'espace salon. */
@@ -63,25 +63,6 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-or);
   outline-offset: 2px;
-}
-
-/*
- * Bande tissée inspirée du Faso Dan Fani (noir, or, indigo, blanc) : la signature visuelle du salon.
- * Utilisée avec parcimonie : haut des en-têtes, sous l'accueil, tampon de confirmation.
- */
-.bande-faso {
-  height: 6px;
-  background-image: repeating-linear-gradient(
-    90deg,
-    var(--color-noir) 0 10px,
-    var(--color-or) 10px 13px,
-    #fffdf9 13px 15px,
-    var(--color-indigo) 15px 27px,
-    #fffdf9 27px 29px,
-    var(--color-or) 29px 35px,
-    var(--color-noir) 35px 39px,
-    var(--color-indigo) 39px 43px
-  );
 }
 
 /* Défilement horizontal avec aimantation (galerie, jours). */

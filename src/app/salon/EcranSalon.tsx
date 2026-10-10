@@ -250,8 +250,9 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
             <div className="flex items-start gap-3">
               <p className="w-16 shrink-0 font-display text-[1.6rem] leading-none font-bold">{c.heureDebut}</p>
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">
-                  {c.clientNom} {c.enRetard && <Pastille ton="rouge">En retard</Pastille>}
+                <p className="flex flex-wrap items-center gap-x-2 font-semibold">
+                  <span>{c.clientNom}</span>
+                  {c.enRetard && <Pastille ton="rouge">En retard</Pastille>}
                 </p>
                 <p className="text-sm text-sourdine">
                   {formatDuration(c.dureeMin)}, {qui(c)}

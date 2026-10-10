@@ -2,11 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { Logo } from "@/components/layout/Logo";
+import { GalerieDefilante } from "@/components/public/GalerieDefilante";
 import { HabillagePublic } from "@/components/public/Habillage";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconWhatsApp } from "@/components/ui/icons";
-import { fourchetteDuree, fourchettePrix } from "@/lib/salon/regles";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
 import { SALON_PUBLIC } from "@/server/salon/public-config";
 import { salonPublic, type SalonPublic } from "@/server/salon/service";
@@ -15,6 +14,8 @@ export const metadata: Metadata = {
   title: { absolute: "La Coquette du Faso — Demander un rendez-vous" },
   description: "Demandez votre rendez-vous en ligne au salon La Coquette du Faso, à Ouagadougou. Le salon vous confirme l'heure sur WhatsApp.",
 };
+
+const GALERIE_MAX = 40;
 
 const ETAPES = [
   { titre: "Vous choisissez", texte: "Un modèle en photo ou un type de coiffure, le jour et le moment qui vous arrangent." },
@@ -25,7 +26,7 @@ const ETAPES = [
 export default function Accueil() {
   return (
     <HabillagePublic plein>
-      <Suspense fallback={<HeroSansPhoto />}>
+      <Suspense fallback={<Hero />}>
         <Contenu />
       </Suspense>
     </HabillagePublic>
@@ -37,7 +38,7 @@ async function Contenu() {
   const salon = await salonPublic(SALON_PUBLIC);
   return (
     <>
-      {salon && salon.modeles.length >= 1 ? <HeroPhotos modeles={salon.modeles} /> : <HeroSansPhoto />}
+      <Hero />
       <div className="mx-auto max-w-5xl px-4">
         {salon && salon.modeles.length > 0 && <Galerie modeles={salon.modeles} />}
         <Etapes />
@@ -56,62 +57,20 @@ function Accroche() {
       <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/75">
         Choisissez votre modèle et demandez votre rendez-vous en une minute. Le salon vous confirme l&apos;heure sur WhatsApp.
       </p>
-      <Link href="/reserver" className={buttonClasses("or", "lg", "mt-6 w-full sm:w-auto")}>
+      <Link href="/reserver" className={buttonClasses("or", "lg", "mt-7 w-full sm:w-auto")}>
         Demander un rendez-vous
       </Link>
     </>
   );
 }
 
-/**
- * L'accueil s'ouvre sur les vraies réalisations du salon.
- * Chaque photo est posée en absolu dans une case de taille fixe : quelle que soit sa taille d'origine,
- * elle est recadrée (object-cover) et ne déborde jamais sur le texte.
- */
-function HeroPhotos({ modeles }: { modeles: SalonPublic["modeles"] }) {
-  const [a, b, c] = modeles;
-  const photo = (m: SalonPublic["modeles"][number], coins: string, prioritaire = false) => (
-    <div className={`relative min-h-0 overflow-hidden ${coins}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
-      <img
-        src={m.photoUrl}
-        alt={m.nom}
-        loading={prioritaire ? "eager" : "lazy"}
-        fetchPriority={prioritaire ? "high" : "auto"}
-        className="absolute inset-0 size-full object-cover"
-      />
-    </div>
-  );
+function Hero() {
   return (
-    <section className="bg-noir pb-10">
-      <div className="mx-auto max-w-5xl px-4 pt-4 sm:grid sm:grid-cols-[1fr_1.15fr] sm:items-center sm:gap-10 sm:pt-10">
-        <div
-          className={`grid h-[24rem] grid-rows-[minmax(0,1fr)] gap-2 sm:order-2 sm:h-[32rem] ${b ? "grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : "grid-cols-1"}`}
-        >
-          {photo(a, b ? "rounded-[1.75rem] rounded-br-md" : "rounded-[1.75rem]", true)}
-          {b && (
-            <div className={`grid min-h-0 gap-2 ${c ? "grid-rows-[repeat(2,minmax(0,1fr))]" : "grid-rows-[minmax(0,1fr)]"}`}>
-              {photo(b, c ? "rounded-[1.75rem] rounded-bl-md" : "rounded-[1.75rem] rounded-l-md")}
-              {c && photo(c, "rounded-[1.75rem] rounded-tl-md")}
-            </div>
-          )}
-        </div>
-        <div className="mt-7 sm:order-1 sm:mt-0">
+    <section className="texture-noire">
+      <div className="mx-auto max-w-5xl px-4 pt-12 pb-12 sm:pt-20 sm:pb-16">
+        <div className="max-w-xl">
           <Accroche />
         </div>
-      </div>
-    </section>
-  );
-}
-
-function HeroSansPhoto() {
-  return (
-    <section className="texture-noire relative overflow-hidden pb-10">
-      <div className="pointer-events-none absolute -top-6 -right-16 opacity-[0.08]" aria-hidden>
-        <Logo size={300} />
-      </div>
-      <div className="relative mx-auto max-w-3xl px-4 pt-14">
-        <Accroche />
       </div>
     </section>
   );
@@ -126,26 +85,13 @@ function Galerie({ modeles }: { modeles: SalonPublic["modeles"] }) {
         <h2 id="titre-modeles" className="font-display text-[2rem] leading-none font-bold">
           Nos réalisations
         </h2>
-        <p className="pb-1 text-xs text-sourdine">{modeles.length} modèle{modeles.length > 1 ? "s" : ""}</p>
+        <Link href="/reserver" className="pb-1 text-sm font-medium text-or-fonce underline decoration-or/50 underline-offset-4">
+          Tout voir
+        </Link>
       </div>
-      <p className="mt-2 text-sm text-sourdine">Touchez un modèle pour le demander.</p>
-      <ul className="defile-x -mx-4 mt-4 gap-3 px-4 pb-2">
-        {modeles.map((m) => (
-          <li key={m.id} className="w-[68%] sm:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)]">
-            <Link href={`/reserver?modele=${m.id}`} className="group block">
-              <span className="block overflow-hidden rounded-[1.5rem] shadow-photo">
-                {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
-                <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
-              </span>
-              <span className="mt-3 block font-display text-[1.35rem] leading-tight font-bold">{m.nom}</span>
-              <span className="mt-0.5 block text-sm text-sourdine">
-                {[fourchettePrix(m.prixMin, m.prixMax), fourchetteDuree(m.dureeMin, m.dureeMax)].filter(Boolean).join(", ")}
-              </span>
-              <span className="mt-1.5 inline-block text-sm font-medium text-or-fonce underline decoration-or/50 underline-offset-4">Demander ce modèle</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <p className="mt-2 text-sm text-sourdine">Faites glisser pour voir plus, touchez un modèle pour le demander.</p>
+      {/* Les plus récents seulement : la page reste légère même avec des milliers de modèles. */}
+      <GalerieDefilante modeles={modeles.slice(0, GALERIE_MAX)} />
     </section>
   );
 }

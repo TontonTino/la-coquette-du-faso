@@ -51,7 +51,6 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
       {d.statut === "demandee" && <Actualiser />}
       <p className="text-sm text-sourdine">Bonjour {d.prenom},</p>
       <div className={`relative mt-3 overflow-hidden rounded-[1.75rem] p-6 ${fond}`}>
-        {e.ton === "ok" && <div className="bande-faso absolute inset-x-0 top-0" aria-hidden />}
         {d.statut === "prevue" && (
           <span
             className="absolute top-6 right-5 flex size-16 animate-tampon items-center justify-center rounded-full border-2 border-or text-or"
