@@ -29,11 +29,18 @@ const DEMO_COIFFEUSES: [string, number[]][] = [
   ["Djeneba F.", [2]], ["Clarisse H.", [6]], ["Estelle R.", [3]], ["Pélagie V.", [4]], ["Edwige A.", [6]],
 ];
 
+/** Neon ajoute « channel_binding=require », que le pilote « postgres » refuse : on le retire (sslmode=require reste). */
+function nettoyerUrl(url: string): string {
+  const u = new URL(url);
+  u.searchParams.delete("channel_binding");
+  return u.toString();
+}
+
 // Types de coiffure et spécialités fictifs (démo) : la gérante saisira les vrais dans l'onglet Équipe.
 const DEMO_TYPES = ["Tresses", "Braids", "Nattes collées", "Tissage", "Perruque", "Défrisage & brushing"];
 const specialitesDemo = (i: number) => [DEMO_TYPES[i % 6], DEMO_TYPES[(i + 2) % 6], ...(i % 3 === 0 ? [DEMO_TYPES[(i + 4) % 6]] : [])];
 
-const sql = postgres(url!, { max: 1, onnotice: () => {} });
+const sql = postgres(nettoyerUrl(url!), { max: 1, onnotice: () => {} });
 try {
   const existing = await sql`SELECT id FROM salon LIMIT 1`;
   if (existing.length > 0) {

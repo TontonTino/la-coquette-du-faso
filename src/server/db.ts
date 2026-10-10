@@ -8,13 +8,20 @@ import postgres from "postgres";
  */
 type Sql = postgres.Sql;
 
+/** Neon ajoute « channel_binding=require », que le pilote « postgres » refuse : on le retire (sslmode=require reste). */
+export function nettoyerUrl(url: string): string {
+  const u = new URL(url);
+  u.searchParams.delete("channel_binding");
+  return u.toString();
+}
+
 const globalForDb = globalThis as unknown as { __miaSql?: Sql };
 
 export function db(): Sql {
   if (!globalForDb.__miaSql) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL n'est pas configurée.");
-    globalForDb.__miaSql = postgres(url, {
+    globalForDb.__miaSql = postgres(nettoyerUrl(url), {
       max: Number(process.env.DATABASE_POOL_MAX ?? 5),
       idle_timeout: 20,
       prepare: false,

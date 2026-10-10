@@ -10,8 +10,15 @@ if (!url) {
   process.exit(1);
 }
 
+/** Neon ajoute « channel_binding=require », que le pilote « postgres » refuse : on le retire (sslmode=require reste). */
+function nettoyerUrl(url) {
+  const u = new URL(url);
+  u.searchParams.delete("channel_binding");
+  return u.toString();
+}
+
 const dir = fileURLToPath(new URL("../db/migrations/", import.meta.url));
-const sql = postgres(url, { max: 1, onnotice: () => {} });
+const sql = postgres(nettoyerUrl(url), { max: 1, onnotice: () => {} });
 
 try {
   await sql`CREATE TABLE IF NOT EXISTS schema_migrations (nom text PRIMARY KEY, appliquee_le timestamptz NOT NULL DEFAULT now())`;
