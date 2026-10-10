@@ -112,13 +112,13 @@ export function FormulaireDemande({
     <div className="mt-4">
       {salon.modeles.length > 0 && (
         <Etape n={++n} titre="Choisissez un modèle" aide="Touchez une photo. Vous avez votre propre photo ? Choisissez le type juste en dessous.">
-          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
             {salon.modeles.map((m) => {
               const on = m.id === modele;
               return (
                 <button key={m.id} type="button" aria-pressed={on} onClick={() => setModele(on ? "" : m.id)} className="group text-left">
                   <span
-                    className={`relative block overflow-hidden rounded-[1.25rem] ring-offset-2 ring-offset-lin transition-shadow ${on ? "ring-[3px] ring-or" : "ring-0"}`}
+                    className={`relative block overflow-hidden rounded-[1.25rem] transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : ""}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
                     <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />

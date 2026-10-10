@@ -38,7 +38,7 @@ async function Contenu() {
   return (
     <>
       {salon && salon.modeles.length >= 1 ? <HeroPhotos modeles={salon.modeles} /> : <HeroSansPhoto />}
-      <div className="mx-auto max-w-3xl px-4">
+      <div className="mx-auto max-w-5xl px-4">
         {salon && salon.modeles.length > 0 && <Galerie modeles={salon.modeles} />}
         <Etapes />
         {salon && <TypesEtContact salon={salon} />}
@@ -52,7 +52,7 @@ async function Contenu() {
 function Accroche() {
   return (
     <>
-      <h1 className="font-display text-[2.9rem] leading-[0.95] font-bold text-white sm:text-6xl">Votre coiffure, sans attendre.</h1>
+      <h1 className="font-display text-[2.9rem] leading-[0.95] font-bold text-white lg:text-[4rem]">Votre coiffure, sans attendre.</h1>
       <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/75">
         Choisissez votre modèle et demandez votre rendez-vous en une minute. Le salon vous confirme l&apos;heure sur WhatsApp.
       </p>
@@ -63,26 +63,40 @@ function Accroche() {
   );
 }
 
-/** L'accueil s'ouvre sur les vraies réalisations du salon. */
+/**
+ * L'accueil s'ouvre sur les vraies réalisations du salon.
+ * Chaque photo est posée en absolu dans une case de taille fixe : quelle que soit sa taille d'origine,
+ * elle est recadrée (object-cover) et ne déborde jamais sur le texte.
+ */
 function HeroPhotos({ modeles }: { modeles: SalonPublic["modeles"] }) {
   const [a, b, c] = modeles;
-  const photo = (m: SalonPublic["modeles"][number], classe: string, prioritaire = false) => (
-    // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite
-    <img src={m.photoUrl} alt={m.nom} loading={prioritaire ? "eager" : "lazy"} fetchPriority={prioritaire ? "high" : "auto"} className={`size-full object-cover ${classe}`} />
+  const photo = (m: SalonPublic["modeles"][number], coins: string, prioritaire = false) => (
+    <div className={`relative min-h-0 overflow-hidden ${coins}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
+      <img
+        src={m.photoUrl}
+        alt={m.nom}
+        loading={prioritaire ? "eager" : "lazy"}
+        fetchPriority={prioritaire ? "high" : "auto"}
+        className="absolute inset-0 size-full object-cover"
+      />
+    </div>
   );
   return (
-    <section className="bg-noir pb-8">
-      <div className="mx-auto max-w-3xl px-4 pt-4">
-        <div className={`grid h-[22rem] gap-2 sm:h-[26rem] ${b ? "grid-cols-[1.35fr_1fr]" : "grid-cols-1"}`}>
-          <div className="overflow-hidden rounded-[1.75rem] rounded-br-md">{photo(a, "", true)}</div>
+    <section className="bg-noir pb-10">
+      <div className="mx-auto max-w-5xl px-4 pt-4 sm:grid sm:grid-cols-[1fr_1.15fr] sm:items-center sm:gap-10 sm:pt-10">
+        <div
+          className={`grid h-[24rem] grid-rows-[minmax(0,1fr)] gap-2 sm:order-2 sm:h-[32rem] ${b ? "grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" : "grid-cols-1"}`}
+        >
+          {photo(a, b ? "rounded-[1.75rem] rounded-br-md" : "rounded-[1.75rem]", true)}
           {b && (
-            <div className={`grid gap-2 ${c ? "grid-rows-2" : ""}`}>
-              <div className="overflow-hidden rounded-[1.75rem] rounded-bl-md">{photo(b, "")}</div>
-              {c && <div className="overflow-hidden rounded-[1.75rem] rounded-tl-md">{photo(c, "")}</div>}
+            <div className={`grid min-h-0 gap-2 ${c ? "grid-rows-[repeat(2,minmax(0,1fr))]" : "grid-rows-[minmax(0,1fr)]"}`}>
+              {photo(b, c ? "rounded-[1.75rem] rounded-bl-md" : "rounded-[1.75rem] rounded-l-md")}
+              {c && photo(c, "rounded-[1.75rem] rounded-tl-md")}
             </div>
           )}
         </div>
-        <div className="mt-7">
+        <div className="mt-7 sm:order-1 sm:mt-0">
           <Accroche />
         </div>
       </div>
@@ -117,7 +131,7 @@ function Galerie({ modeles }: { modeles: SalonPublic["modeles"] }) {
       <p className="mt-2 text-sm text-sourdine">Touchez un modèle pour le demander.</p>
       <ul className="defile-x -mx-4 mt-4 gap-3 px-4 pb-2">
         {modeles.map((m) => (
-          <li key={m.id} className="w-[68%] sm:w-[40%]">
+          <li key={m.id} className="w-[68%] sm:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)]">
             <Link href={`/reserver?modele=${m.id}`} className="group block">
               <span className="block overflow-hidden rounded-[1.5rem] shadow-photo">
                 {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}

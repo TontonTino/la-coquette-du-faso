@@ -8,7 +8,7 @@ export function HabillagePublic({ children, plein = false }: { children: ReactNo
     <div className="flex min-h-dvh flex-col bg-lin text-encre">
       <header className="sticky top-0 z-30 bg-noir text-white">
         <div className="bande-faso" aria-hidden />
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2">
           <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="La Coquette du Faso, accueil">
             <Logo size={36} priority />
             <span className="font-display text-xl leading-none font-semibold text-or">La Coquette du Faso</span>
