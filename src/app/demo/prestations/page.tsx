@@ -37,7 +37,7 @@ export default function PrestationsPage() {
                   </div>
                   <p className="text-xs text-sourdine">{experts.map((e) => e.name).join(", ")}</p>
                 </div>
-                <ButtonLink href={`/reserver?prestation=${s.id}`} size="sm">
+                <ButtonLink href={`/demo/reserver?prestation=${s.id}`} size="sm">
                   Réserver
                 </ButtonLink>
               </div>

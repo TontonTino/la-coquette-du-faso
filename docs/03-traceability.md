@@ -28,3 +28,20 @@ Exigence → code → test → résultat. Résultats obtenus le **10/10/2026** s
 | NFR-001 Mobile 360–390 px | Écrans `src/app/salon` | e2e (390 px) | ✅ à 390 px ; 360 px non testé |
 | NFR-002 3G lente | — | — | ⏳ Non mesuré |
 | NFR-004 Pas de perte de saisie | Formulaires : l'erreur s'affiche, la saisie reste | — | ⚠️ Non testé automatiquement |
+
+## Phase B — demandes en ligne (10/10/2026)
+
+| Exigence | Code | Test | Résultat |
+|---|---|---|---|
+| FR-B01 Accueil public | `src/app/page.tsx`, `salonPublic` | e2e clientes « Accueil public » | ✅ |
+| FR-B02 Demande | `creerDemande`, `reserver/FormulaireDemande.tsx` | int. « une cliente envoie une demande… » · e2e | ✅ |
+| FR-B03 Suivi | `suiviDemande`, `demande/[ref]` | int. · e2e « confirmé », « non acceptée » | ✅ |
+| FR-B04 Liste des demandes | `demandesEnAttente`, `EcranSalon` | int. · e2e « La secrétaire voit la demande » | ✅ |
+| FR-B05 Confirmation | `confirmerDemande` (compétences, chevauchement) | int. (refus de Fatim, créneau pris ensuite) · e2e | ✅ |
+| FR-B06 Refus | `refuserDemande` | int. · e2e | ✅ |
+| FR-B07 Message WhatsApp | `lib/salon/whatsapp.ts`, écran « Prévenir » | unit. messages · e2e (lien wa.me + lien de suivi) | ✅ |
+| FR-B08 WhatsApp du salon | `modifierWhatsappSalon`, Équipe | int. · e2e | ✅ |
+| SEC-B01 Anti-abus | `creerDemande` (limites, piège) | int. « valide les demandes publiques et limite les abus » | ✅ |
+| SEC-B02 Pas de données personnelles en public | `suiviDemande` (prénom seul) | int. · e2e « n'affiche pas le numéro » | ✅ |
+
+Limite connue : une référence inconnue affiche « Page introuvable » (et noindex), mais avec un code HTTP 200, car la page est envoyée par morceaux (streaming). Sans effet pour les clientes.

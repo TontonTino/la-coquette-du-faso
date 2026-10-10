@@ -44,7 +44,7 @@ export function ManagerAppointments() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DayNav date={date} today={today} onChange={setDate} />
-        <ButtonLink href="/reserver" size="sm" variant="noir">
+        <ButtonLink href="/demo/reserver" size="sm" variant="noir">
           + Nouveau rendez-vous
         </ButtonLink>
       </div>
@@ -82,7 +82,7 @@ export function ManagerAppointments() {
                     {list.length} rendez-vous · {formatFcfa(revenue)}
                   </p>
                 </div>
-                <Link href={`/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
+                <Link href={`/demo/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
                   Planning
                 </Link>
               </div>

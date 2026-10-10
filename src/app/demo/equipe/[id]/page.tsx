@@ -11,19 +11,19 @@ export function generateStaticParams() {
   return STYLISTS.map((s) => ({ id: s.id }));
 }
 
-export async function generateMetadata({ params }: PageProps<"/equipe/[id]">): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps<"/demo/equipe/[id]">): Promise<Metadata> {
   const { id } = await params;
   return { title: getStylist(id)?.name ?? "Experte" };
 }
 
-export default async function StylistPage({ params }: PageProps<"/equipe/[id]">) {
+export default async function StylistPage({ params }: PageProps<"/demo/equipe/[id]">) {
   const { id } = await params;
   const stylist = getStylist(id);
   if (!stylist) notFound();
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link href="/equipe" className="text-sm text-sourdine hover:text-noir">
+      <Link href="/demo/equipe" className="text-sm text-sourdine hover:text-noir">
         ← Toute l&apos;équipe
       </Link>
       <section className="texture-noire mt-3 flex flex-col items-center rounded-3xl px-6 py-8 text-center text-white">
@@ -48,7 +48,7 @@ export default async function StylistPage({ params }: PageProps<"/equipe/[id]">)
                   {capitalize(formatDuration(service.durationMin))} · {formatFcfa(service.priceFcfa)}
                 </p>
               </div>
-              <ButtonLink href={`/reserver?prestation=${service.id}&coiffeuse=${stylist.id}`} size="sm">
+              <ButtonLink href={`/demo/reserver?prestation=${service.id}&coiffeuse=${stylist.id}`} size="sm">
                 Réserver
               </ButtonLink>
             </Card>

@@ -55,7 +55,7 @@ export function TeamOverview() {
                 </div>
               </dl>
               <div className="mt-4 flex justify-end">
-                <ButtonLink href={`/espace-coiffeuse/${s.id}`} size="sm" variant="contour">
+                <ButtonLink href={`/demo/espace-coiffeuse/${s.id}`} size="sm" variant="contour">
                   Voir son planning
                 </ButtonLink>
               </div>

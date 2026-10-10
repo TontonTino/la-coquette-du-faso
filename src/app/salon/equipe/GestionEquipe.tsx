@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import type { Categorie, Coiffeuse } from "@/lib/salon/types";
-import { ajouterCategorieAction, ajouterCoiffeuseAction, modifierCoiffeuseAction } from "../actions";
+import { ajouterCategorieAction, ajouterCoiffeuseAction, modifierCoiffeuseAction, modifierWhatsappSalonAction } from "../actions";
 import { Carte, Champ, classeInput, Section, Vide } from "../ui";
 
 const JOURS = [
@@ -53,7 +53,15 @@ function Pastilles<T extends string | number>({
  * FR-001, FR-002, FR-015, FR-016 : la gérante gère les types de coiffure, les coiffeuses,
  * leurs jours de congé et ce que chacune sait faire.
  */
-export function GestionEquipe({ coiffeuses, categories }: { coiffeuses: Coiffeuse[]; categories: Categorie[] }) {
+export function GestionEquipe({
+  coiffeuses,
+  categories,
+  whatsappSalon,
+}: {
+  coiffeuses: Coiffeuse[];
+  categories: Categorie[];
+  whatsappSalon: string | null;
+}) {
   const toast = useToast();
   const [enCours, start] = useTransition();
   const [nouveauType, setNouveauType] = useState("");
@@ -61,6 +69,14 @@ export function GestionEquipe({ coiffeuses, categories }: { coiffeuses: Coiffeus
   const [conges, setConges] = useState<number[]>([]);
   const [competences, setCompetences] = useState<string[]>([]);
   const [edition, setEdition] = useState<Coiffeuse | null>(null);
+  const [whatsapp, setWhatsapp] = useState(whatsappSalon ?? "");
+
+  const enregistrerWhatsapp = () =>
+    start(async () => {
+      const r = await modifierWhatsappSalonAction(whatsapp);
+      if (!r.ok) return toast("erreur", r.erreur);
+      toast("succes", whatsapp.trim() ? "Numéro WhatsApp du salon enregistré" : "Numéro WhatsApp retiré");
+    });
   const optionsTypes = categories.map((c) => ({ v: c.id, l: c.nom }));
   const nomType = new Map(categories.map((c) => [c.id, c.nom]));
 
@@ -97,6 +113,21 @@ export function GestionEquipe({ coiffeuses, categories }: { coiffeuses: Coiffeus
   return (
     <div>
       <h1 className="font-display text-3xl font-bold">Équipe</h1>
+
+      <Section titre="WhatsApp du salon">
+        <Carte>
+          <p className="mb-3 text-sm text-sourdine">Affiché aux clientes pour envoyer la photo du modèle ou poser une question.</p>
+          <div className="flex gap-2">
+            <label className="flex-1">
+              <span className="sr-only">Numéro WhatsApp du salon</span>
+              <input className={classeInput} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} type="tel" inputMode="tel" placeholder="70 12 34 56" />
+            </label>
+            <Button variant="noir" loading={enCours} onClick={enregistrerWhatsapp}>
+              Enregistrer
+            </Button>
+          </div>
+        </Carte>
+      </Section>
 
       <Section titre="Types de coiffure" nombre={categories.length}>
         <Carte>

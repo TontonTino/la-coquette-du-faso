@@ -127,3 +127,22 @@ Réservation en ligne par les clientes (phase B), paiement en ligne, envoi autom
 | Qui encaisse et saisit le prix final : la secrétaire, ou la coiffeuse ? | FR-011 |
 | « Coiffeuse la plus demandée » = celle qui a fait le plus de prestations, ou celle que les clientes demandent par son nom ? | FR-013 |
 | Après combien de minutes de retard une cliente avec rendez-vous peut-elle être doublée ? | BR-004 |
+
+---
+
+# Phase B — Demandes de rendez-vous en ligne
+
+*Ajoutée le 10/10/2026. Décision de l'équipe : la cliente envoie une **demande**, que la secrétaire **valide** (les durées vont de 2 h à 10 h, seul le salon peut fixer l'heure exacte).*
+
+| ID | Exigence | Critère d'acceptation | Prio. | Vérif. |
+|---|---|---|---|---|
+| FR-B01 | Une cliente voit la page du salon et ses types de coiffure, sans compte. | L'accueil s'affiche sans connexion, avec les types définis par la gérante. | M | T (e2e) |
+| FR-B02 | Elle envoie une demande : type de coiffure (facultatif), jour (60 jours maximum), moment de la journée (facultatif), coiffeuse souhaitée (facultative, seulement si compétente et pas en congé ce jour-là), nom, numéro WhatsApp, précisions. | Elle reçoit une référence de suivi de 8 caractères. | M | T |
+| FR-B03 | Elle suit sa demande avec la référence : en attente, confirmée (jour, heure, coiffeuses) ou refusée (motif). | La page se met à jour toute seule toutes les 30 s tant que la demande attend. | M | T |
+| FR-B04 | La secrétaire voit les demandes à traiter en tête de l'écran Salon. | Une nouvelle demande apparaît en 60 s au plus (rafraîchissement automatique). | M | T |
+| FR-B05 | Elle confirme en fixant le jour, l'heure exacte, la durée et 1 ou 2 coiffeuses compétentes et libres ; la coiffeuse souhaitée est présélectionnée. | La demande devient un rendez-vous ; les règles BR-001 à BR-003 et BR-009 s'appliquent. | M | T |
+| FR-B06 | Elle refuse avec un motif lisible par la cliente. | Le motif apparaît sur la page de suivi. | M | T |
+| FR-B07 | Après confirmation ou refus, un bouton ouvre WhatsApp avec le message prêt (lien de suivi inclus). | Le lien commence par `https://wa.me/226` suivi du numéro de la cliente. | M | T |
+| FR-B08 | La gérante renseigne le numéro WhatsApp du salon, proposé aux clientes pour envoyer la photo du modèle. | Le bouton « Écrire au salon » apparaît sur l'accueil. | S | T |
+| SEC-B01 | Anti-abus : 3 demandes en attente au plus par numéro, 60 demandes en ligne par heure au plus, piège à robots. | Une 4e demande avec le même numéro est refusée avec un message clair. | M | T |
+| SEC-B02 | Les pages publiques n'affichent jamais de numéro de téléphone ni de nom complet de cliente. | La page de suivi n'affiche que le prénom. | M | T |

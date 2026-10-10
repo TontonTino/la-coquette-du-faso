@@ -156,3 +156,17 @@ describe("bilan du soir (FR-013)", () => {
     expect(b.absences).toEqual([{ nom: "Clarisse H.", motif: "conge" }]);
   });
 });
+
+describe("messages WhatsApp", async () => {
+  const { lienWhatsApp, messageConfirmation } = await import("./whatsapp");
+  it("construit un lien wa.me avec l'indicatif 226", () => {
+    expect(lienWhatsApp("+226 70 12 34 56", "Bonjour")).toBe("https://wa.me/22670123456?text=Bonjour");
+    expect(lienWhatsApp("123")).toBeNull();
+  });
+  it("n'ajoute pas de double point après un nom abrégé", () => {
+    const m = messageConfirmation({ clientNom: "Awa T.", salonNom: "Salon", jour: "2026-10-11", heure: "10:00", coiffeuses: ["Alima D."], lienSuivi: "x" });
+    expect(m).toContain("avec Alima D.\n");
+    expect(m).not.toContain("..");
+    expect(m).toMatch(/^Bonjour Awa,/);
+  });
+});

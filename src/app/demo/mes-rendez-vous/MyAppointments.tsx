@@ -27,7 +27,7 @@ export function MyAppointments() {
       </PageHeader>
 
       {mine.length === 0 ? (
-        <EmptyState title="Aucun rendez-vous pour l'instant" action={<ButtonLink href="/reserver">Prendre rendez-vous</ButtonLink>}>
+        <EmptyState title="Aucun rendez-vous pour l'instant" action={<ButtonLink href="/demo/reserver">Prendre rendez-vous</ButtonLink>}>
           Vos réservations de démonstration apparaîtront ici.
         </EmptyState>
       ) : (
@@ -37,7 +37,7 @@ export function MyAppointments() {
               À venir <span className="text-base font-normal text-sourdine">({upcoming.length})</span>
             </h2>
             {upcoming.length === 0 ? (
-              <EmptyState title="Aucun rendez-vous à venir" action={<ButtonLink href="/reserver">Réserver</ButtonLink>} />
+              <EmptyState title="Aucun rendez-vous à venir" action={<ButtonLink href="/demo/reserver">Réserver</ButtonLink>} />
             ) : (
               <ul className="space-y-3">
                 {upcoming.map((a) => (

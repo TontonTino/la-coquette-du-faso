@@ -52,7 +52,7 @@ export function ManagerDashboard() {
             eyebrow="Aujourd'hui"
             title="Rendez-vous par coiffeuse"
             action={
-              <Link href="/espace-gerante/rendez-vous" className="text-sm font-medium text-or-fonce hover:underline">
+              <Link href="/demo/espace-gerante/rendez-vous" className="text-sm font-medium text-or-fonce hover:underline">
                 Gérer
               </Link>
             }
@@ -68,7 +68,7 @@ export function ManagerDashboard() {
                       <p className="font-medium text-noir">{s.name}</p>
                       <p className="text-xs text-sourdine">{worksOn(s, today) ? `${list.length} rendez-vous` : "Repos aujourd'hui"}</p>
                     </div>
-                    <Link href={`/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
+                    <Link href={`/demo/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
                       Planning
                     </Link>
                   </div>

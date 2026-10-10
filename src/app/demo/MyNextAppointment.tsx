@@ -19,7 +19,7 @@ export function MyNextAppointment() {
   if (!next) return null;
   return (
     <Link
-      href="/mes-rendez-vous"
+      href="/demo/mes-rendez-vous"
       className="-mt-6 flex items-center gap-4 rounded-2xl border border-or/40 bg-white p-4 shadow-carte transition-colors hover:border-or"
     >
       <span className="text-2xl text-or" aria-hidden>

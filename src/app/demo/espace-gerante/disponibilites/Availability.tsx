@@ -45,7 +45,7 @@ export function Availability() {
               <div className="mb-3 flex items-center gap-3">
                 <Avatar stylist={s} size="sm" />
                 <p className="flex-1 font-medium text-noir">{s.name}</p>
-                <Link href={`/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
+                <Link href={`/demo/espace-coiffeuse/${s.id}`} className="text-xs font-medium text-or-fonce hover:underline">
                   Ouvrir le planning
                 </Link>
               </div>
@@ -118,7 +118,7 @@ export function Availability() {
                     {starts.map((t) => (
                       <Link
                         key={t}
-                        href={`/reserver?prestation=${service.id}&coiffeuse=${s.id}&date=${date}&heure=${t}`}
+                        href={`/demo/reserver?prestation=${service.id}&coiffeuse=${s.id}&date=${date}&heure=${t}`}
                         className="rounded-full bg-vert-pale px-2.5 py-1 text-sm text-vert hover:ring-1 hover:ring-vert/40"
                         title="Réserver ce créneau pour une cliente"
                       >

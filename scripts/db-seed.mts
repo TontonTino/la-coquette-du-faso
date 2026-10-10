@@ -47,7 +47,7 @@ try {
     console.log("Un salon existe déjà : rien n'a été modifié.");
   } else {
     await sql.begin(async (tx) => {
-      const [salon] = await tx`INSERT INTO salon (nom) VALUES ('La Coquette du Faso') RETURNING id`;
+      const [salon] = await tx`INSERT INTO salon (nom, slug) VALUES ('La Coquette du Faso', 'la-coquette-du-faso') RETURNING id`;
       await tx`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES
         (${salon.id}, 'gerante', 'Gérante', 'gerante', ${await hashPassword(pwdGerante)}),
         (${salon.id}, 'secretaire', 'Secrétaire', 'secretaire', ${await hashPassword(pwdSecretaire)})`;

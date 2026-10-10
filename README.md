@@ -1,9 +1,10 @@
 # La Coquette du Faso — MIA
 
-Ce dépôt contient deux parties :
+Ce dépôt contient trois parties :
 
+0. **Les pages clientes (`/`, `/reserver`, `/demande/<référence>`)** — publiques : la cliente envoie une demande de rendez-vous, la secrétaire la confirme, la cliente suit la réponse.
 1. **L'espace salon (`/salon`)** — l'outil réel de la secrétaire et de la gérante : file d'attente, rendez-vous, coiffeuses et leurs spécialités, bilan du soir. Données dans PostgreSQL, connexion obligatoire. Voir « Espace salon » ci-dessous et `docs/`.
-2. **La démo de réservation (`/`)** — prototype sur données fictives (localStorage), conservé comme référence pour la phase B (réservation en ligne par les clientes).
+2. **La démo de réservation (`/demo`)** — prototype sur données fictives (localStorage), conservé comme référence pour la phase B (réservation en ligne par les clientes).
 
 ## Espace salon
 

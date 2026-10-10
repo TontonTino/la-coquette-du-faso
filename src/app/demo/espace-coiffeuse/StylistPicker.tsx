@@ -28,7 +28,7 @@ export function StylistPicker() {
           const todays = state ? appointmentsFor(state, { stylistId: s.id, date: today }) : null;
           return (
             <li key={s.id}>
-              <Link href={`/espace-coiffeuse/${s.id}`} className="group block">
+              <Link href={`/demo/espace-coiffeuse/${s.id}`} className="group block">
                 <Card className="flex items-center gap-4 p-4 transition-colors group-hover:border-or">
                   <Avatar stylist={s} />
                   <div className="min-w-0 flex-1">

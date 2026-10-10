@@ -4,7 +4,7 @@
  */
 import { normalizePhone } from "@/lib/booking";
 import { isValidIsoDate, isValidTime, weekday } from "@/lib/time";
-import type { Coiffeuse, Jour, Statut } from "./types";
+import type { Coiffeuse, Jour, Moment, Statut } from "./types";
 
 export const DUREE_MIN = 30;
 export const DUREE_MAX = 720;
@@ -88,10 +88,12 @@ export function saitFaire(c: Pick<Coiffeuse, "categorieIds">, categorieId: strin
 
 /* ---------------- Cycle de vie ---------------- */
 
-export type ActionPrestation = "arrivee" | "demarrer" | "terminer" | "annuler" | "absente" | "modifier";
+export type ActionPrestation = "arrivee" | "demarrer" | "terminer" | "annuler" | "absente" | "modifier" | "confirmer" | "refuser";
 
 /** Actions possibles selon le statut (docs/02-requirements.md §1, cycle de vie). */
 export const TRANSITIONS: Record<Statut, ActionPrestation[]> = {
+  demandee: ["confirmer", "refuser"],
+  refusee: [],
   prevue: ["arrivee", "demarrer", "annuler", "absente", "modifier"],
   en_attente: ["demarrer", "annuler", "modifier"],
   en_cours: ["terminer"],
@@ -112,3 +114,41 @@ export function statutApresAnnulation(statut: Statut): Statut {
 
 /** Statuts qui réservent une plage horaire aux coiffeuses affectées. */
 export const STATUTS_OCCUPANTS: Statut[] = ["prevue", "en_attente", "en_cours"];
+
+/* ---------------- Demandes en ligne (phase B) ---------------- */
+
+export const MOMENTS: { valeur: Moment; label: string; plage: string }[] = [
+  { valeur: "matin", label: "Matin", plage: "avant 12 h" },
+  { valeur: "apres_midi", label: "Après-midi", plage: "12 h – 16 h" },
+  { valeur: "fin_journee", label: "Fin de journée", plage: "après 16 h" },
+];
+
+export const JOURS_RESERVABLES = 60;
+export const DEMANDES_EN_ATTENTE_MAX_PAR_NUMERO = 3;
+
+export function libelleMoment(m: Moment | null): string {
+  const t = MOMENTS.find((x) => x.valeur === m);
+  return t ? `${t.label} (${t.plage})` : "Peu importe l'heure";
+}
+
+/** Une demande vise aujourd'hui ou un jour des 60 prochains jours. */
+export function verifierJourDemande(jour: Jour, aujourdhui: Jour): string | null {
+  if (!isValidIsoDate(jour)) return "Date invalide.";
+  if (jour < aujourdhui) return "Cette date est déjà passée.";
+  const limite = new Date(`${aujourdhui}T00:00:00Z`);
+  limite.setUTCDate(limite.getUTCDate() + JOURS_RESERVABLES);
+  if (jour > limite.toISOString().slice(0, 10)) return `Les demandes sont ouvertes sur les ${JOURS_RESERVABLES} prochains jours.`;
+  return null;
+}
+
+export function verifierMoment(m: string | null): m is Moment | null {
+  return m === null || m === "matin" || m === "apres_midi" || m === "fin_journee";
+}
+
+/** Référence de suivi : 8 caractères sans 0/O ni 1/I (lisibles au téléphone). */
+const ALPHABET_REF = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export function nouvelleReference(aleatoire: (n: number) => Uint8Array): string {
+  const octets = aleatoire(8);
+  return Array.from(octets, (o) => ALPHABET_REF[o % ALPHABET_REF.length]).join("");
+}
+export const estReference = (v: unknown): v is string => typeof v === "string" && /^[A-Z2-9]{8}$/.test(v);

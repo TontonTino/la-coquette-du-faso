@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -42,7 +42,7 @@ suite("service salon (PostgreSQL)", () => {
 
   beforeEach(async () => {
     await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence CASCADE");
-    const [sa] = await admin`INSERT INTO salon (nom) VALUES ('Salon A') RETURNING id`;
+    const [sa] = await admin`INSERT INTO salon (nom, slug) VALUES ('Salon A', 'salon-a') RETURNING id`;
     const [sb] = await admin`INSERT INTO salon (nom) VALUES ('Salon B') RETURNING id`;
     const [ga] = await admin`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES (${sa.id}, 'gerante-a', 'Gérante A', 'gerante', 'x') RETURNING id`;
     const [se] = await admin`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES (${sa.id}, 'secretaire-a', 'Secrétaire A', 'secretaire', 'x') RETURNING id`;
@@ -213,5 +213,90 @@ suite("service salon (PostgreSQL)", () => {
     expect(await svc.creerRendezVous(secA, rdv({ heure: "08:00" }), NOW)).toEqual({ ok: false, erreur: "Cette heure est déjà passée." });
     expect(await svc.creerRendezVous(secA, rdv({ coiffeuseIds: ["pas-un-uuid"] }), NOW)).toEqual({ ok: false, erreur: "Coiffeuse inconnue." });
     expect(await svc.demarrer(secA, "pas-un-uuid", { dureeMin: 60, coiffeuseIds: [c.awa] }, NOW)).toEqual({ ok: false, erreur: "Cette prestation n'existe pas." });
+  });
+
+  /* ---------------- Phase B : demandes en ligne ---------------- */
+
+  const demande = (over: Partial<import("./service").SaisieDemande> = {}): import("./service").SaisieDemande => ({
+    clientNom: "Aminata Ouédraogo",
+    clientTel: "70 11 22 33",
+    categorieId: c.tresses,
+    jour: "2026-10-12", // lundi : Awa et Fatim sont en congé le lundi dans ce jeu de test
+    moment: "matin",
+    coiffeuseSouhaitee: null,
+    remarque: "Photo envoyée sur WhatsApp",
+    piege: "",
+    ...over,
+  });
+
+  it("une cliente envoie une demande, la secrétaire la voit puis la confirme (FR-B02, FR-B04, FR-B05)", async () => {
+    const d = await svc.creerDemande("salon-a", demande({ jour: "2026-10-13" }), NOW);
+    if (!d.ok) throw new Error(d.erreur);
+    expect(d.valeur.reference).toMatch(/^[A-Z2-9]{8}$/);
+
+    let suivi = await svc.suiviDemande(d.valeur.reference);
+    expect(suivi).toMatchObject({ statut: "demandee", prenom: "Aminata", categorie: "Tresses", heure: null });
+    expect(JSON.stringify(suivi)).not.toContain("70 11 22 33"); // jamais de téléphone en public
+
+    const enAttente = await svc.demandesEnAttente(secA);
+    expect(enAttente.map((x) => x.reference)).toEqual([d.valeur.reference]);
+    expect(enAttente[0]).toMatchObject({ clientTel: "+226 70 11 22 33", moment: "matin", categorie: "Tresses" });
+
+    // Fatim ne fait pas les tresses : refusée
+    const id = enAttente[0].id;
+    expect(await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "09:00", dureeMin: 240, coiffeuseIds: [c.fatim] }, NOW)).toEqual({
+      ok: false,
+      erreur: "Fatim ne fait pas ce type de coiffure (Tresses).",
+    });
+    const conf = await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "09:00", dureeMin: 240, coiffeuseIds: [c.awa] }, NOW);
+    expect(conf).toEqual({ ok: true, valeur: { reference: d.valeur.reference, clientNom: "Aminata Ouédraogo", clientTel: "+226 70 11 22 33", coiffeuses: ["Awa"] } });
+
+    suivi = await svc.suiviDemande(d.valeur.reference);
+    expect(suivi).toMatchObject({ statut: "prevue", heure: "09:00", coiffeuses: ["Awa"], jour: "2026-10-13" });
+    expect(await svc.demandesEnAttente(secA)).toEqual([]);
+    // Le créneau d'Awa est désormais pris (BR-001)
+    expect((await svc.creerRendezVous(secA, rdv({ jour: "2026-10-13", heure: "10:00" }), NOW)).ok).toBe(false);
+    // Une demande déjà confirmée ne peut pas l'être deux fois
+    expect((await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "15:00", dureeMin: 60, coiffeuseIds: [c.awa] }, NOW)).ok).toBe(false);
+  });
+
+  it("refus avec motif visible par la cliente (FR-B06)", async () => {
+    const d = await svc.creerDemande("salon-a", demande(), NOW);
+    if (!d.ok) throw new Error(d.erreur);
+    const [{ id }] = await svc.demandesEnAttente(secA);
+    expect(await svc.refuserDemande(secA, id, "Complet ce jour-là")).toEqual({
+      ok: true,
+      valeur: { clientNom: "Aminata Ouédraogo", clientTel: "+226 70 11 22 33" },
+    });
+    expect(await svc.suiviDemande(d.valeur.reference)).toMatchObject({ statut: "refusee", motifRefus: "Complet ce jour-là" });
+  });
+
+  it("valide les demandes publiques et limite les abus (SEC-B01)", async () => {
+    expect(await svc.creerDemande("salon-a", demande({ jour: "2026-10-09" }), NOW)).toEqual({ ok: false, erreur: "Cette date est déjà passée." });
+    expect(await svc.creerDemande("salon-a", demande({ jour: "2027-03-01" }), NOW)).toMatchObject({ ok: false });
+    expect(await svc.creerDemande("salon-a", demande({ clientTel: "" }), NOW)).toMatchObject({ ok: false, erreur: expect.stringMatching(/WhatsApp/) });
+    expect(await svc.creerDemande("salon-a", demande({ piege: "http://spam" }), NOW)).toEqual({ ok: false, erreur: "Demande refusée." });
+    expect(await svc.creerDemande("inconnu", demande(), NOW)).toEqual({ ok: false, erreur: "Salon introuvable." });
+    // Coiffeuse souhaitée en congé ce jour-là (lundi) ou d'un autre salon
+    expect(await svc.creerDemande("salon-a", demande({ coiffeuseSouhaitee: c.awa }), NOW)).toEqual({ ok: false, erreur: "Awa est en congé ce jour-là." });
+    expect(await svc.creerDemande("salon-a", demande({ coiffeuseSouhaitee: c.zoe }), NOW)).toEqual({ ok: false, erreur: "Coiffeuse inconnue." });
+    expect(await svc.creerDemande("salon-a", demande({ categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Type de coiffure inconnu." });
+    // 3 demandes en attente maximum par numéro
+    for (let i = 0; i < 3; i++) expect((await svc.creerDemande("salon-a", demande(), NOW)).ok).toBe(true);
+    expect(await svc.creerDemande("salon-a", demande(), NOW)).toMatchObject({ ok: false, erreur: expect.stringMatching(/déjà 3 demandes/) });
+    // Le salon B ne voit pas les demandes du salon A
+    expect(await svc.demandesEnAttente(B)).toEqual([]);
+    expect(await svc.suiviDemande("pas-une-ref")).toBeNull();
+    expect(await svc.suiviDemande("AAAAAAAA")).toBeNull();
+  });
+
+  it("page publique : types et coiffeuses actives, sans données de clientes", async () => {
+    const pub = await svc.salonPublic("salon-a");
+    expect(pub?.categories.map((x) => x.nom)).toEqual(["Tissage", "Tresses"]);
+    expect(pub?.coiffeuses.map((x) => x.nom)).toEqual(["Awa", "Clarisse", "Fatim"]);
+    expect(await svc.salonPublic("inconnu")).toBeNull();
+    expect(await svc.modifierWhatsappSalon(secA, "70 00 00 00").catch((e) => e.message)).toMatch(/non autorisée/);
+    expect(await svc.modifierWhatsappSalon(A, "70 00 00 00")).toEqual({ ok: true, valeur: undefined });
+    expect((await svc.salonPublic("salon-a"))?.whatsapp).toBe("+226 70 00 00 00");
   });
 });

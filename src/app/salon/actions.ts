@@ -161,3 +161,24 @@ export async function deconnexionAction() {
   await seDeconnecter();
   redirect("/connexion");
 }
+
+/* ---------------- Demandes en ligne (secrétaire) ---------------- */
+
+export async function confirmerDemandeAction(id: string, s: { jour: string; heure: string; dureeMin: number; coiffeuseIds: string[] }) {
+  return executer(async () =>
+    svc.confirmerDemande(await exigerAction(), texte(id, 40), {
+      jour: texte(s?.jour, 10),
+      heure: texte(s?.heure, 5),
+      dureeMin: entier(s?.dureeMin),
+      coiffeuseIds: ids(s?.coiffeuseIds),
+    }),
+  );
+}
+
+export async function refuserDemandeAction(id: string, motif: string) {
+  return executer(async () => svc.refuserDemande(await exigerAction(), texte(id, 40), texte(motif, 250)));
+}
+
+export async function modifierWhatsappSalonAction(whatsapp: string) {
+  return executer(async () => svc.modifierWhatsappSalon(await exigerAction(["gerante"]), texte(whatsapp, 30)));
+}

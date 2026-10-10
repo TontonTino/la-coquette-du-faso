@@ -14,7 +14,7 @@ export default function EquipePage() {
       <ul className="space-y-4">
         {STYLISTS.map((s) => (
           <li key={s.id}>
-            <Link href={`/equipe/${s.id}`} className="group block">
+            <Link href={`/demo/equipe/${s.id}`} className="group block">
               <Card className="flex items-center gap-4 p-5 transition-colors group-hover:border-or">
                 <Avatar stylist={s} size="lg" />
                 <div className="min-w-0 flex-1">

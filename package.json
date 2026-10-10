@@ -15,7 +15,8 @@
     "test:e2e": "node e2e/demo.e2e.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "node scripts/db-seed.mts",
-    "test:e2e:salon": "node e2e/salon.e2e.mjs"
+    "test:e2e:salon": "node e2e/salon.e2e.mjs",
+    "test:e2e:clientes": "node e2e/clientes.e2e.mjs"
   },
   "dependencies": {
     "next": "16.4.0",

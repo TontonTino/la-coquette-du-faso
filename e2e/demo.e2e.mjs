@@ -44,7 +44,7 @@ const slot = (t) => page.getByRole("button", { name: new RegExp(`^${t.replace(/ 
 
 try {
   // 1. Accueil
-  await page.goto(BASE + "/");
+  await page.goto(BASE + "/demo");
   await page.getByRole("link", { name: "Lancer le scénario" }).waitFor();
   check("Accueil affiché", await page.getByRole("heading", { name: /L'élégance/ }).isVisible());
   await noHorizontalScroll("accueil");
@@ -73,13 +73,13 @@ try {
   await shot("04-confirmation");
 
   // 3. Mes rendez-vous
-  await page.goto(BASE + "/mes-rendez-vous");
+  await page.goto(BASE + "/demo/mes-rendez-vous");
   await page.getByText("Tresses Fulani").first().waitFor();
   check("Rendez-vous listé dans « Mes rendez-vous »", (await page.getByText("En attente").count()) > 0);
   await shot("05-mes-rendez-vous");
 
   // 4. Double réservation : le scénario relancé propose des alternatives
-  await page.goto(BASE + "/reserver?prestation=tresses-fulani&coiffeuse=aicha-k&date=2026-12-23&heure=15:30");
+  await page.goto(BASE + "/demo/reserver?prestation=tresses-fulani&coiffeuse=aicha-k&date=2026-12-23&heure=15:30");
   await page.getByRole("heading", { name: "Nos propositions" }).waitFor();
   check("Créneau réservé non reproposé", (await slot("15 h 30").count()) === 0);
   check("Alternative : Salimata B. à la même heure", await page.getByRole("button", { name: /Salimata B\./ }).first().isVisible());
@@ -87,7 +87,7 @@ try {
   await shot("06-alternatives");
 
   // 5. Espace coiffeuse : confirmation + blocage
-  await page.goto(BASE + "/espace-coiffeuse/aicha-k");
+  await page.goto(BASE + "/demo/espace-coiffeuse/aicha-k");
   await page.getByLabel("Choisir une date").fill("2026-12-23");
   await page.getByRole("button", { name: /Tresses Fulani/ }).waitFor();
   check("Le RDV apparaît dans le planning d'Aïcha", await page.getByText("Cliente Démo · jusqu").isVisible());
@@ -102,11 +102,11 @@ try {
   await noHorizontalScroll("espace coiffeuse");
 
   // 6. Espace gérante
-  await page.goto(BASE + "/espace-gerante");
+  await page.goto(BASE + "/demo/espace-gerante");
   await page.getByRole("heading", { name: "Tableau de bord" }).waitFor();
   await noHorizontalScroll("tableau de bord");
   await shot("08-tableau-de-bord");
-  await page.goto(BASE + "/espace-gerante/rendez-vous");
+  await page.goto(BASE + "/demo/espace-gerante/rendez-vous");
   await page.getByLabel("Choisir une date").fill("2026-12-23");
   const aicha = page.getByRole("region", { name: "Rendez-vous de Aïcha K." });
   await aicha.getByText("Cliente Démo").waitFor();
@@ -114,34 +114,34 @@ try {
   await noHorizontalScroll("rendez-vous gérante");
   await shot("09-rendez-vous-gerante");
   for (const p of ["disponibilites", "prestations", "equipe"]) {
-    await page.goto(`${BASE}/espace-gerante/${p}`);
+    await page.goto(`${BASE}/demo/espace-gerante/${p}`);
     await page.locator("h1").waitFor();
     await noHorizontalScroll(`gérante/${p}`);
   }
   await shot("10-equipe-gerante");
 
   // 7. Annulation par la cliente : le créneau redevient libre
-  await page.goto(BASE + "/mes-rendez-vous");
+  await page.goto(BASE + "/demo/mes-rendez-vous");
   await page.getByRole("button", { name: /Tresses Fulani/ }).first().click();
   await page.getByRole("button", { name: "Annuler le rendez-vous" }).click();
   await page.getByRole("button", { name: "Oui, annuler" }).click();
   check("Annulation confirmée", await page.getByText("Rendez-vous annulé").isVisible());
-  await page.goto(BASE + "/reserver?prestation=tresses-fulani&coiffeuse=aicha-k&date=2026-12-23&heure=15:30");
+  await page.goto(BASE + "/demo/reserver?prestation=tresses-fulani&coiffeuse=aicha-k&date=2026-12-23&heure=15:30");
   await slot("15 h 30").waitFor();
   check("Créneau libéré après annulation", (await slot("15 h 30").getAttribute("aria-pressed")) === "true");
 
   // 8. Persistance après rechargement
-  await page.goto(BASE + "/mes-rendez-vous");
+  await page.goto(BASE + "/demo/mes-rendez-vous");
   await page.reload();
   await page.getByText("Annulé").first().waitFor();
   check("Données conservées après rechargement", true);
 
   // 9. Ordinateur
   await page.setViewportSize({ width: 1366, height: 900 });
-  await page.goto(BASE + "/");
+  await page.goto(BASE + "/demo");
   await page.getByRole("link", { name: "Lancer le scénario" }).waitFor();
   await shot("11-accueil-ordinateur");
-  await page.goto(BASE + "/espace-gerante");
+  await page.goto(BASE + "/demo/espace-gerante");
   await page.getByRole("heading", { name: "Tableau de bord" }).waitFor();
   await shot("12-tableau-de-bord-ordinateur");
 

@@ -8,7 +8,7 @@ import { MyNextAppointment } from "./MyNextAppointment";
 
 const scenarioService = getService(DEMO_SCENARIO.serviceId)!;
 const scenarioStylist = getStylist(DEMO_SCENARIO.stylistId)!;
-const scenarioHref = `/reserver?prestation=${DEMO_SCENARIO.serviceId}&coiffeuse=${DEMO_SCENARIO.stylistId}&date=${DEMO_SCENARIO.date}&heure=${DEMO_SCENARIO.start}`;
+const scenarioHref = `/demo/reserver?prestation=${DEMO_SCENARIO.serviceId}&coiffeuse=${DEMO_SCENARIO.stylistId}&date=${DEMO_SCENARIO.date}&heure=${DEMO_SCENARIO.start}`;
 
 export default function HomePage() {
   return (
@@ -30,10 +30,10 @@ export default function HomePage() {
               Choisissez votre prestation, votre experte et votre créneau en quelques instants. Plus d&apos;attente au salon.
             </p>
             <div className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:justify-center md:justify-start">
-              <ButtonLink href="/reserver" size="lg">
+              <ButtonLink href="/demo/reserver" size="lg">
                 Réserver maintenant
               </ButtonLink>
-              <ButtonLink href="/prestations" variant="contour-clair" size="lg">
+              <ButtonLink href="/demo/prestations" variant="contour-clair" size="lg">
                 Voir les prestations
               </ButtonLink>
             </div>
@@ -75,7 +75,7 @@ export default function HomePage() {
           eyebrow="Nos prestations"
           title="Tresses & coiffures"
           action={
-            <Link href="/prestations" className="text-sm font-medium text-or-fonce hover:underline">
+            <Link href="/demo/prestations" className="text-sm font-medium text-or-fonce hover:underline">
               Tout voir
             </Link>
           }
@@ -83,7 +83,7 @@ export default function HomePage() {
         <ul className="grid gap-3 sm:grid-cols-3">
           {SERVICES.map((s) => (
             <li key={s.id}>
-              <Link href={`/reserver?prestation=${s.id}`} className="group block h-full">
+              <Link href={`/demo/reserver?prestation=${s.id}`} className="group block h-full">
                 <Card className="flex h-full flex-col p-5 transition-colors group-hover:border-or">
                   <h3 className="font-display text-2xl font-semibold text-noir">{s.name}</h3>
                   <p className="mt-1 flex-1 text-sm text-sourdine">{s.description}</p>
@@ -106,7 +106,7 @@ export default function HomePage() {
           eyebrow="Notre équipe"
           title="Nos expertes"
           action={
-            <Link href="/equipe" className="text-sm font-medium text-or-fonce hover:underline">
+            <Link href="/demo/equipe" className="text-sm font-medium text-or-fonce hover:underline">
               Tout voir
             </Link>
           }
@@ -114,7 +114,7 @@ export default function HomePage() {
         <ul className="grid gap-3 sm:grid-cols-3">
           {STYLISTS.map((s) => (
             <li key={s.id}>
-              <Link href={`/equipe/${s.id}`} className="group block">
+              <Link href={`/demo/equipe/${s.id}`} className="group block">
                 <Card className="flex items-center gap-4 p-4 transition-colors group-hover:border-or">
                   <Avatar stylist={s} />
                   <div className="min-w-0">

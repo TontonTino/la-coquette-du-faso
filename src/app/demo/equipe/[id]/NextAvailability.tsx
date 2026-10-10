@@ -40,7 +40,7 @@ export function NextAvailability({ stylistId }: { stylistId: string }) {
                 {r.starts.map((s) => (
                   <Link
                     key={s}
-                    href={`/reserver?prestation=${r.serviceId}&coiffeuse=${stylistId}&date=${r.date}&heure=${s}`}
+                    href={`/demo/reserver?prestation=${r.serviceId}&coiffeuse=${stylistId}&date=${r.date}&heure=${s}`}
                     className="rounded-full border border-or/50 px-3 py-1 text-sm font-medium text-encre hover:bg-or-pale"
                   >
                     {formatTime(s)}

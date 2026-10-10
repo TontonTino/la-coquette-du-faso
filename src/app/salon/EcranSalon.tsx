@@ -7,14 +7,19 @@ import { useToast } from "@/components/ui/Toast";
 import { DUREES_RAPIDES } from "@/lib/salon/regles";
 import type { Categorie, Paiement, Resultat } from "@/lib/salon/types";
 import type { CartePrestation, Journee } from "@/lib/salon/vue";
-import { addDays, formatDuration, formatFcfa } from "@/lib/time";
+import { libelleMoment } from "@/lib/salon/regles";
+import { lienWhatsApp, messageConfirmation, messageRefus } from "@/lib/salon/whatsapp";
+import type { Demande } from "@/server/salon/service";
+import { addDays, capitalize, formatDateMedium, formatDuration, formatFcfa } from "@/lib/time";
 import {
   absenteAction,
   ajouterSansRendezVousAction,
   annulerAction,
   arriveeAction,
   coiffeusesLibresAction,
+  confirmerDemandeAction,
   creerRendezVousAction,
+  refuserDemandeAction,
   demarrerAction,
   modifierRendezVousAction,
   terminerAction,
@@ -26,7 +31,10 @@ type Ecran =
   | { type: "rdv"; carte?: CartePrestation }
   | { type: "sans" }
   | { type: "demarrer"; carte: CartePrestation }
-  | { type: "terminer"; carte: CartePrestation };
+  | { type: "terminer"; carte: CartePrestation }
+  | { type: "confirmer"; demande: Demande }
+  | { type: "refuser"; demande: Demande }
+  | { type: "prevenir"; titre: string; texte: string; lien: string | null };
 
 const DUREES = DUREES_RAPIDES.map((d) => ({ valeur: d, label: formatDuration(d) }));
 const qui = (c: CartePrestation) => (c.coiffeuses.length ? c.coiffeuses.join(" + ") : "Coiffeuse à attribuer");
@@ -38,7 +46,17 @@ const optionsCategories = (categories: Categorie[]) => [
 ];
 
 /** Écran principal de la secrétaire : file d'attente, prestations en cours, rendez-vous à venir. */
-export function EcranSalon({ journee, aujourdhui }: { journee: Journee; aujourdhui: string }) {
+export function EcranSalon({
+  journee,
+  aujourdhui,
+  demandes,
+  salonNom,
+}: {
+  journee: Journee;
+  aujourdhui: string;
+  demandes: Demande[];
+  salonNom: string;
+}) {
   const [ecran, setEcran] = useState<Ecran>({ type: "liste" });
   const router = useRouter();
   const retour = () => setEcran({ type: "liste" });
@@ -55,7 +73,11 @@ export function EcranSalon({ journee, aujourdhui }: { journee: Journee; aujourdh
   if (ecran.type === "sans") return <FormSansRendezVous categories={cats} onFini={retour} />;
   if (ecran.type === "demarrer") return <FormDemarrer carte={ecran.carte} aujourdhui={aujourdhui} onFini={retour} />;
   if (ecran.type === "terminer") return <FormTerminer carte={ecran.carte} onFini={retour} />;
-  return <Liste journee={journee} ouvrir={setEcran} />;
+  if (ecran.type === "confirmer")
+    return <FormConfirmerDemande demande={ecran.demande} aujourdhui={aujourdhui} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
+  if (ecran.type === "refuser") return <FormRefuserDemande demande={ecran.demande} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
+  if (ecran.type === "prevenir") return <Prevenir titre={ecran.titre} texte={ecran.texte} lien={ecran.lien} onFini={retour} />;
+  return <Liste journee={journee} demandes={demandes} ouvrir={setEcran} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -74,7 +96,7 @@ function useAction() {
   return { enCours, lancer };
 }
 
-function Liste({ journee, ouvrir }: { journee: Journee; ouvrir: (e: Ecran) => void }) {
+function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Demande[]; ouvrir: (e: Ecran) => void }) {
   const { enCours, lancer } = useAction();
   const { attente, enCours: cours, aVenir, compteurs } = journee;
   return (
@@ -91,6 +113,42 @@ function Liste({ journee, ouvrir }: { journee: Journee; ouvrir: (e: Ecran) => vo
         {compteurs.libres} coiffeuse{compteurs.libres > 1 ? "s" : ""} libre{compteurs.libres > 1 ? "s" : ""} · {compteurs.occupees} occupée
         {compteurs.occupees > 1 ? "s" : ""} · {compteurs.absentes} absente{compteurs.absentes > 1 ? "s" : ""}
       </p>
+
+      {demandes.length > 0 && (
+        <Section titre="Demandes en ligne à traiter" nombre={demandes.length}>
+          {demandes.map((d) => (
+            <Carte key={d.id} className="border-or">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">{d.clientNom}</p>
+                  <p className="text-sm">
+                    {capitalize(formatDateMedium(d.jour))} · {libelleMoment(d.moment)}
+                  </p>
+                  <p className="text-sm text-sourdine">
+                    {d.categorie ?? "Type à préciser"}
+                    {d.coiffeuseSouhaitee ? ` · souhaite ${d.coiffeuseSouhaitee.nom}` : ""}
+                  </p>
+                  {d.remarque && <p className="text-sm text-sourdine">« {d.remarque} »</p>}
+                  {lienWhatsApp(d.clientTel) && (
+                    <a className="text-sm text-or-fonce underline" href={lienWhatsApp(d.clientTel)!}>
+                      {d.clientTel} · WhatsApp
+                    </a>
+                  )}
+                </div>
+                <Pastille ton="or">En ligne</Pastille>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <button type="button" className="min-h-11 px-2 text-sm text-sourdine underline" onClick={() => ouvrir({ type: "refuser", demande: d })}>
+                  Refuser
+                </button>
+                <Button variant="noir" onClick={() => ouvrir({ type: "confirmer", demande: d })}>
+                  Confirmer
+                </Button>
+              </div>
+            </Carte>
+          ))}
+        </Section>
+      )}
 
       <Section titre="En attente au salon" nombre={attente.length}>
         {attente.length === 0 && <Vide>Personne n&apos;attend.</Vide>}
@@ -529,6 +587,149 @@ function FormTerminer({ carte, onFini }: { carte: CartePrestation; onFini: () =>
         }}
       >
         Valider et libérer les coiffeuses
+      </Button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Demandes en ligne                                                   */
+/* ------------------------------------------------------------------ */
+
+const HEURE_PAR_MOMENT: Record<string, string> = { matin: "09:00", apres_midi: "13:00", fin_journee: "16:00" };
+const lienSuivi = (reference: string) => `${window.location.origin}/demande/${reference}`;
+
+function FormConfirmerDemande({
+  demande,
+  aujourdhui,
+  salonNom,
+  onFini,
+  ouvrir,
+}: {
+  demande: Demande;
+  aujourdhui: string;
+  salonNom: string;
+  onFini: () => void;
+  ouvrir: (e: Ecran) => void;
+}) {
+  const toast = useToast();
+  const [enCours, start] = useTransition();
+  const [jour, setJour] = useState(demande.jour < aujourdhui ? aujourdhui : demande.jour);
+  const [heure, setHeure] = useState((demande.moment && HEURE_PAR_MOMENT[demande.moment]) || "09:00");
+  const [duree, setDuree] = useState(180);
+  const [choisies, setChoisies] = useState<string[]>(demande.coiffeuseSouhaitee ? [demande.coiffeuseSouhaitee.id] : []);
+  const libres = useCoiffeusesLibres({ jour, heure, dureeMin: duree, ignorer: demande.id, categorieId: demande.categorieId });
+  const valides = garderLibres(choisies, libres);
+  const souhaiteePrise = demande.coiffeuseSouhaitee && libres && !libres.some((l) => l.id === demande.coiffeuseSouhaitee!.id);
+
+  const confirmer = () => {
+    if (valides.length === 0) return toast("erreur", "Choisissez au moins une coiffeuse.");
+    start(async () => {
+      const r = await confirmerDemandeAction(demande.id, { jour, heure, dureeMin: duree, coiffeuseIds: valides });
+      if (!r.ok) return toast("erreur", r.erreur);
+      toast("succes", `Rendez-vous de ${demande.clientNom} confirmé`);
+      const texte = messageConfirmation({ clientNom: r.valeur.clientNom, salonNom, jour, heure, coiffeuses: r.valeur.coiffeuses, lienSuivi: lienSuivi(r.valeur.reference) });
+      ouvrir({ type: "prevenir", titre: "Prévenir la cliente", texte, lien: lienWhatsApp(r.valeur.clientTel, texte) });
+    });
+  };
+
+  return (
+    <div>
+      <EnTete
+        titre="Confirmer la demande"
+        sousTitre={`${demande.clientNom} · ${demande.categorie ?? "type à préciser"} · ${libelleMoment(demande.moment)}`}
+        onRetour={onFini}
+      />
+      {demande.remarque && <p className="mb-4 rounded-xl bg-gris px-3 py-2 text-sm">« {demande.remarque} »</p>}
+      {souhaiteePrise && (
+        <p className="mb-4 rounded-xl bg-rouge-pale px-3 py-2 text-sm text-rouge">
+          {demande.coiffeuseSouhaitee!.nom} (souhaitée par la cliente) n&apos;est pas libre sur ce créneau : changez l&apos;heure ou choisissez une autre coiffeuse.
+        </p>
+      )}
+      <Champ label="Jour">
+        <input type="date" min={aujourdhui} value={jour} onChange={(e) => e.target.value && setJour(e.target.value)} className={classeInput} />
+      </Champ>
+      <Champ label="Heure exacte">
+        <select className={classeInput} value={heure} onChange={(e) => setHeure(e.target.value)}>
+          {HEURES.map((h) => (
+            <option key={h} value={h}>
+              {h}
+            </option>
+          ))}
+        </select>
+      </Champ>
+      <Champ groupe label="Durée estimée">
+        <Choix libelle="Durée estimée" options={DUREES} valeur={duree} onChange={setDuree} />
+      </Champ>
+      <Champ groupe label="Coiffeuse(s)" aide="Compétentes pour ce type de coiffure et libres sur tout le créneau.">
+        <ChoixCoiffeuses libres={libres} choisies={valides} setChoisies={setChoisies} premiereDispo={false} />
+      </Champ>
+      <Button variant="noir" size="lg" className="w-full" loading={enCours} onClick={confirmer}>
+        Confirmer le rendez-vous
+      </Button>
+    </div>
+  );
+}
+
+const MOTIFS = ["Complet ce jour-là", "Aucune coiffeuse disponible pour ce modèle", "Modèle non réalisé au salon"];
+
+function FormRefuserDemande({
+  demande,
+  salonNom,
+  onFini,
+  ouvrir,
+}: {
+  demande: Demande;
+  salonNom: string;
+  onFini: () => void;
+  ouvrir: (e: Ecran) => void;
+}) {
+  const toast = useToast();
+  const [enCours, start] = useTransition();
+  const [motif, setMotif] = useState(MOTIFS[0]);
+  return (
+    <div>
+      <EnTete titre="Refuser la demande" sousTitre={`${demande.clientNom} · ${capitalize(formatDateMedium(demande.jour))}`} onRetour={onFini} />
+      <Champ groupe label="Motif (visible par la cliente)">
+        <Choix libelle="Motif" options={MOTIFS.map((m) => ({ valeur: m, label: m }))} valeur={motif} onChange={setMotif} />
+      </Champ>
+      <Champ label="Ou écrivez le motif">
+        <input className={classeInput} value={motif} onChange={(e) => setMotif(e.target.value)} maxLength={200} />
+      </Champ>
+      <Button
+        variant="danger"
+        size="lg"
+        className="w-full"
+        loading={enCours}
+        onClick={() =>
+          start(async () => {
+            const r = await refuserDemandeAction(demande.id, motif);
+            if (!r.ok) return toast("erreur", r.erreur);
+            toast("succes", "Demande refusée");
+            const texte = messageRefus({ clientNom: r.valeur.clientNom, salonNom, motif: motif.trim(), lienReserver: `${window.location.origin}/reserver` });
+            ouvrir({ type: "prevenir", titre: "Prévenir la cliente", texte, lien: lienWhatsApp(r.valeur.clientTel, texte) });
+          })
+        }
+      >
+        Refuser la demande
+      </Button>
+    </div>
+  );
+}
+
+/** Après une confirmation ou un refus : un geste pour envoyer le message WhatsApp pré-rempli. */
+function Prevenir({ titre, texte, lien, onFini }: { titre: string; texte: string; lien: string | null; onFini: () => void }) {
+  return (
+    <div>
+      <EnTete titre={titre} sousTitre="Le message est prêt : il part de votre WhatsApp quand vous appuyez sur Envoyer." onRetour={onFini} />
+      <pre className="mb-4 rounded-xl border border-trait bg-white p-3 font-sans text-sm whitespace-pre-wrap">{texte}</pre>
+      {lien && (
+        <a href={lien} target="_blank" rel="noopener noreferrer" className="mb-3 flex min-h-13 items-center justify-center rounded-full bg-[#1f7a4d] px-6 font-medium text-white">
+          Envoyer sur WhatsApp
+        </a>
+      )}
+      <Button variant="contour" size="lg" className="w-full" onClick={onFini}>
+        Retour au salon
       </Button>
     </div>
   );

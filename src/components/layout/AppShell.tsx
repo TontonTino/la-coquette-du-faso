@@ -14,35 +14,35 @@ type Space = "cliente" | "coiffeuse" | "gerante";
 type NavItem = { href: string; label: string; icon: ComponentType<SVGProps<SVGSVGElement>>; exact?: boolean };
 
 const SPACES: { id: Space; label: string; href: string }[] = [
-  { id: "cliente", label: "Cliente", href: "/" },
-  { id: "coiffeuse", label: "Coiffeuse", href: "/espace-coiffeuse" },
-  { id: "gerante", label: "Gérante", href: "/espace-gerante" },
+  { id: "cliente", label: "Cliente", href: "/demo" },
+  { id: "coiffeuse", label: "Coiffeuse", href: "/demo/espace-coiffeuse" },
+  { id: "gerante", label: "Gérante", href: "/demo/espace-gerante" },
 ];
 
 const NAV: Record<Space, NavItem[]> = {
   cliente: [
-    { href: "/", label: "Accueil", icon: IconHome, exact: true },
-    { href: "/prestations", label: "Prestations", icon: IconScissors },
-    { href: "/reserver", label: "Réserver", icon: IconCalendarPlus },
-    { href: "/equipe", label: "Équipe", icon: IconUsers },
-    { href: "/mes-rendez-vous", label: "Mes RDV", icon: IconCalendar },
+    { href: "/demo", label: "Accueil", icon: IconHome, exact: true },
+    { href: "/demo/prestations", label: "Prestations", icon: IconScissors },
+    { href: "/demo/reserver", label: "Réserver", icon: IconCalendarPlus },
+    { href: "/demo/equipe", label: "Équipe", icon: IconUsers },
+    { href: "/demo/mes-rendez-vous", label: "Mes RDV", icon: IconCalendar },
   ],
   coiffeuse: [
-    { href: "/espace-coiffeuse", label: "Profils", icon: IconUsers, exact: true },
-    ...STYLISTS.map((s) => ({ href: `/espace-coiffeuse/${s.id}`, label: s.name, icon: IconUser })),
+    { href: "/demo/espace-coiffeuse", label: "Profils", icon: IconUsers, exact: true },
+    ...STYLISTS.map((s) => ({ href: `/demo/espace-coiffeuse/${s.id}`, label: s.name, icon: IconUser })),
   ],
   gerante: [
-    { href: "/espace-gerante", label: "Tableau", icon: IconChart, exact: true },
-    { href: "/espace-gerante/rendez-vous", label: "Rendez-vous", icon: IconList },
-    { href: "/espace-gerante/disponibilites", label: "Dispos", icon: IconClock },
-    { href: "/espace-gerante/prestations", label: "Tarifs", icon: IconTag },
-    { href: "/espace-gerante/equipe", label: "Équipe", icon: IconUsers },
+    { href: "/demo/espace-gerante", label: "Tableau", icon: IconChart, exact: true },
+    { href: "/demo/espace-gerante/rendez-vous", label: "Rendez-vous", icon: IconList },
+    { href: "/demo/espace-gerante/disponibilites", label: "Dispos", icon: IconClock },
+    { href: "/demo/espace-gerante/prestations", label: "Tarifs", icon: IconTag },
+    { href: "/demo/espace-gerante/equipe", label: "Équipe", icon: IconUsers },
   ],
 };
 
 function spaceOf(pathname: string): Space {
-  if (pathname.startsWith("/espace-coiffeuse")) return "coiffeuse";
-  if (pathname.startsWith("/espace-gerante")) return "gerante";
+  if (pathname.startsWith("/demo/espace-coiffeuse")) return "coiffeuse";
+  if (pathname.startsWith("/demo/espace-gerante")) return "gerante";
   return "cliente";
 }
 
@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col">
       <header className="texture-noire sticky top-0 z-40 border-b border-or/25 text-white">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="La Coquette du Faso, accueil">
+          <Link href="/demo" className="flex min-w-0 items-center gap-3" aria-label="La Coquette du Faso, accueil">
             <Logo size={40} priority />
             <span className="hidden min-w-0 leading-tight whitespace-nowrap sm:block">
               <span className="block font-display text-lg font-semibold tracking-wide text-or">La Coquette du Faso</span>

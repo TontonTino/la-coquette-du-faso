@@ -480,7 +480,7 @@ function Wizard({ state, init }: { state: DemoState; init: { selection: Selectio
             navigateur.
           </p>
           <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
-            <ButtonLink href="/mes-rendez-vous">Voir mes rendez-vous</ButtonLink>
+            <ButtonLink href="/demo/mes-rendez-vous">Voir mes rendez-vous</ButtonLink>
             <Button variant="contour" onClick={restart}>
               Nouvelle réservation
             </Button>

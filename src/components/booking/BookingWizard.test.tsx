@@ -10,7 +10,7 @@ import { BookingWizard } from "./BookingWizard";
 let search = "";
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(search),
-  usePathname: () => "/reserver",
+  usePathname: () => "/demo/reserver",
 }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (

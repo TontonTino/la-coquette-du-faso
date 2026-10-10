@@ -2,7 +2,8 @@
 
 export type Role = "gerante" | "secretaire" | "coiffeuse";
 export type Origine = "rendez_vous" | "sans_rendez_vous";
-export type Statut = "prevue" | "en_attente" | "en_cours" | "terminee" | "annulee" | "absente" | "partie";
+export type Statut = "demandee" | "refusee" | "prevue" | "en_attente" | "en_cours" | "terminee" | "annulee" | "absente" | "partie";
+export type Moment = "matin" | "apres_midi" | "fin_journee";
 export type Paiement = "especes" | "mobile_money";
 
 /** Date calendaire AAAA-MM-JJ (Ouagadougou = UTC+0). */

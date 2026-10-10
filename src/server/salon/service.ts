@@ -14,8 +14,14 @@ import {
   verifierPrix,
   verifierTelephone,
   type ActionPrestation,
+  DEMANDES_EN_ATTENTE_MAX_PAR_NUMERO,
+  estReference,
+  nouvelleReference,
+  verifierJourDemande,
+  verifierMoment,
 } from "@/lib/salon/regles";
-import type { Categorie, Coiffeuse, Jour, Paiement, Prestation, Resultat, Role, Statut } from "@/lib/salon/types";
+import { randomBytes } from "node:crypto";
+import type { Categorie, Coiffeuse, Jour, Moment, Paiement, Prestation, Resultat, Role, Statut } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
 import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
 
@@ -492,4 +498,246 @@ export async function modifierCoiffeuse(
     await ecrireCompetences(tx, ctx, id, s.categorieIds);
     return undefined;
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Salon (paramètres visibles par les clientes)                        */
+/* ------------------------------------------------------------------ */
+
+export async function parametresSalon(ctx: Ctx): Promise<{ nom: string; whatsapp: string | null; slug: string | null }> {
+  autoriser(ctx, PERSONNEL);
+  const [r] = await db()<{ nom: string; whatsapp: string | null; slug: string | null }[]>`
+    SELECT nom, whatsapp, slug FROM salon WHERE id = ${ctx.salonId}`;
+  return r;
+}
+
+/** FR-B08 : numéro WhatsApp du salon affiché aux clientes (pour envoyer la photo du modèle). */
+export async function modifierWhatsappSalon(ctx: Ctx, whatsapp: string): Promise<R> {
+  autoriser(ctx, GERANTE);
+  const tel = verifierTelephone(whatsapp, false);
+  if (tel.erreur) return ko(tel.erreur);
+  await db()`UPDATE salon SET whatsapp = ${tel.tel} WHERE id = ${ctx.salonId}`;
+  return ok(undefined);
+}
+
+/* ------------------------------------------------------------------ */
+/* Demandes en ligne — côté secrétaire (FR-B04 à FR-B06)               */
+/* ------------------------------------------------------------------ */
+
+export interface Demande {
+  id: string;
+  reference: string;
+  clientNom: string;
+  clientTel: string;
+  categorieId: string | null;
+  categorie: string | null;
+  jour: Jour;
+  moment: Moment | null;
+  coiffeuseSouhaitee: { id: string; nom: string } | null;
+  remarque: string | null;
+  recueLe: string;
+}
+
+export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
+  autoriser(ctx, PERSONNEL);
+  const rows = await db()<
+    {
+      id: string; reference: string; client_nom: string; client_tel: string; categorie_id: string | null; categorie: string | null;
+      jour: string; souhait_moment: Moment | null; cs_id: string | null; cs_nom: string | null; modele: string | null; cree_le: Date;
+    }[]
+  >`
+    SELECT p.id, p.reference, p.client_nom, p.client_tel, p.categorie_id, k.nom AS categorie, p.jour, p.souhait_moment,
+           c.id AS cs_id, c.nom AS cs_nom, p.modele, p.cree_le
+    FROM prestation p
+    LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
+    LEFT JOIN coiffeuse c ON c.id = p.coiffeuse_souhaitee AND c.salon_id = p.salon_id
+    WHERE p.salon_id = ${ctx.salonId} AND p.statut = 'demandee'
+    ORDER BY p.jour, p.cree_le`;
+  return rows.map((r) => ({
+    id: r.id,
+    reference: r.reference,
+    clientNom: r.client_nom,
+    clientTel: r.client_tel,
+    categorieId: r.categorie_id,
+    categorie: r.categorie,
+    jour: r.jour,
+    moment: r.souhait_moment,
+    coiffeuseSouhaitee: r.cs_id ? { id: r.cs_id, nom: r.cs_nom! } : null,
+    remarque: r.modele,
+    recueLe: r.cree_le.toISOString(),
+  }));
+}
+
+/** FR-B05 : la secrétaire fixe l'heure exacte, la durée et les coiffeuses ; la demande devient un rendez-vous. */
+export async function confirmerDemande(
+  ctx: Ctx,
+  id: string,
+  s: { jour: Jour; heure: string; dureeMin: number; coiffeuseIds: string[] },
+  now = new Date(),
+): Promise<R<{ reference: string; clientNom: string; clientTel: string; coiffeuses: string[] }>> {
+  autoriser(ctx, PERSONNEL);
+  const erreur = verifierJourHeure(s.jour, s.heure) ?? verifierDuree(s.dureeMin) ?? verifierChoixCoiffeuses(s.coiffeuseIds, true);
+  if (erreur) return ko(erreur);
+  const debut = instant(s.jour, s.heure);
+  if (debut.getTime() < now.getTime() - 15 * 60_000) return ko("Cette heure est déjà passée.");
+  return transaction(async (tx) => {
+    const p = await charger(tx, ctx, id, "confirmer");
+    await verifierCoiffeuses(tx, ctx, s.coiffeuseIds, s.jour, p.categorie_id);
+    const [d] = await tx<{ reference: string; client_nom: string; client_tel: string }[]>`
+      UPDATE prestation SET statut = 'prevue', jour = ${s.jour}, debut = ${debut}, duree_min = ${s.dureeMin}, maj_le = now()
+      WHERE id = ${id} RETURNING reference, client_nom, client_tel`;
+    await poserAffectations(tx, ctx, id, s.coiffeuseIds, debut, s.dureeMin);
+    const noms = await tx<{ nom: string }[]>`SELECT nom FROM coiffeuse WHERE salon_id = ${ctx.salonId} AND id IN ${tx(s.coiffeuseIds)} ORDER BY nom`;
+    return { reference: d.reference, clientNom: d.client_nom, clientTel: d.client_tel, coiffeuses: noms.map((n) => n.nom) };
+  });
+}
+
+/** FR-B06 : refus avec un motif lisible par la cliente. */
+export async function refuserDemande(ctx: Ctx, id: string, motif: string): Promise<R<{ clientNom: string; clientTel: string }>> {
+  autoriser(ctx, PERSONNEL);
+  const m = motif.trim();
+  if (m.length < 3 || m.length > 200) return ko("Indiquez un motif (3 à 200 caractères).");
+  return transaction(async (tx) => {
+    await charger(tx, ctx, id, "refuser");
+    const [d] = await tx<{ client_nom: string; client_tel: string }[]>`
+      UPDATE prestation SET statut = 'refusee', motif_refus = ${m}, maj_le = now() WHERE id = ${id} RETURNING client_nom, client_tel`;
+    return { clientNom: d.client_nom, clientTel: d.client_tel };
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Côté clientes — pages publiques, sans connexion (FR-B01 à FR-B03)   */
+/* ------------------------------------------------------------------ */
+
+export interface SalonPublic {
+  nom: string;
+  whatsapp: string | null;
+  categories: Categorie[];
+  coiffeuses: { id: string; nom: string; categorieIds: string[]; joursConge: number[] }[];
+}
+
+async function salonParSlug(slug: string): Promise<{ id: string; nom: string; whatsapp: string | null } | null> {
+  if (!/^[a-z0-9-]{3,60}$/.test(slug)) return null;
+  const [s] = await db()<{ id: string; nom: string; whatsapp: string | null }[]>`SELECT id, nom, whatsapp FROM salon WHERE slug = ${slug}`;
+  return s ?? null;
+}
+
+/** Ce qu'une cliente peut voir : types de coiffure et prénoms des coiffeuses actives. Aucune donnée personnelle de clientes. */
+export async function salonPublic(slug: string): Promise<SalonPublic | null> {
+  const s = await salonParSlug(slug);
+  if (!s) return null;
+  const ctx: Ctx = { salonId: s.id, utilisateurId: "", role: "secretaire" };
+  const [coiffeuses, categories] = await Promise.all([lireCoiffeuses(ctx), lireCategories(ctx)]);
+  return {
+    nom: s.nom,
+    whatsapp: s.whatsapp,
+    categories,
+    coiffeuses: coiffeuses.filter((c) => c.actif).map((c) => ({ id: c.id, nom: c.nom, categorieIds: c.categorieIds, joursConge: c.joursConge })),
+  };
+}
+
+export interface SaisieDemande {
+  clientNom: string;
+  clientTel: string;
+  categorieId: string | null;
+  jour: Jour;
+  moment: string | null;
+  coiffeuseSouhaitee: string | null;
+  remarque: string;
+  /** Champ invisible : rempli seulement par les robots. */
+  piege: string;
+}
+
+/** FR-B02 : une cliente envoie une demande ; elle reçoit une référence de suivi. */
+export async function creerDemande(slug: string, s: SaisieDemande, now = new Date()): Promise<R<{ reference: string }>> {
+  if (s.piege) return ko("Demande refusée.");
+  const salon = await salonParSlug(slug);
+  if (!salon) return ko("Salon introuvable.");
+  const ctx: Ctx = { salonId: salon.id, utilisateurId: "", role: "secretaire" };
+  const tel = verifierTelephone(s.clientTel, true);
+  const erreur =
+    verifierNom(s.clientNom) ??
+    tel.erreur ??
+    verifierJourDemande(s.jour, todayIso(now)) ??
+    (verifierMoment(s.moment) ? null : "Moment de la journée invalide.") ??
+    verifierModele(s.remarque);
+  if (erreur) return ko(erreur);
+  if (s.coiffeuseSouhaitee !== null && !estUuid(s.coiffeuseSouhaitee)) return ko("Coiffeuse inconnue.");
+
+  return transaction(async (tx) => {
+    // Anti-abus (SEC-B01) : limite les demandes en attente par numéro et le volume par heure.
+    const [{ n }] = await tx<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM prestation
+      WHERE salon_id = ${ctx.salonId} AND client_tel = ${tel.tel} AND statut = 'demandee'`;
+    if (n >= DEMANDES_EN_ATTENTE_MAX_PAR_NUMERO) {
+      throw new Refus(`Vous avez déjà ${n} demandes en attente. Le salon vous répondra bientôt sur WhatsApp.`);
+    }
+    const [{ h }] = await tx<{ h: number }[]>`
+      SELECT count(*)::int AS h FROM prestation
+      WHERE salon_id = ${ctx.salonId} AND canal = 'en_ligne' AND cree_le > ${new Date(now.getTime() - 3_600_000)}`;
+    if (h >= 60) throw new Refus("Beaucoup de demandes en ce moment : réessayez dans quelques minutes ou écrivez au salon sur WhatsApp.");
+
+    await verifierCategorie(tx, ctx, s.categorieId);
+    if (s.coiffeuseSouhaitee) await verifierCoiffeuses(tx, ctx, [s.coiffeuseSouhaitee], s.jour, s.categorieId);
+
+    for (let essai = 0; essai < 5; essai++) {
+      const reference = nouvelleReference((n) => randomBytes(n));
+      const r = await tx<{ reference: string }[]>`
+        INSERT INTO prestation (salon_id, origine, statut, canal, reference, client_nom, client_tel, modele, categorie_id,
+                                jour, duree_min, souhait_moment, coiffeuse_souhaitee)
+        VALUES (${ctx.salonId}, 'rendez_vous', 'demandee', 'en_ligne', ${reference}, ${s.clientNom.trim()}, ${tel.tel},
+                ${s.remarque.trim() || null}, ${s.categorieId}, ${s.jour}, 180, ${s.moment}, ${s.coiffeuseSouhaitee})
+        ON CONFLICT (reference) DO NOTHING
+        RETURNING reference`;
+      if (r.length) return { reference: r[0].reference };
+    }
+    throw new Error("Impossible de générer une référence unique.");
+  });
+}
+
+export interface SuiviDemande {
+  reference: string;
+  salonNom: string;
+  salonWhatsapp: string | null;
+  prenom: string;
+  statut: Statut;
+  jour: Jour;
+  moment: Moment | null;
+  heure: string | null;
+  categorie: string | null;
+  coiffeuses: string[];
+  motifRefus: string | null;
+}
+
+/** FR-B03 : suivi par référence. Ne renvoie ni le téléphone ni le nom complet. */
+export async function suiviDemande(reference: string): Promise<SuiviDemande | null> {
+  if (!estReference(reference)) return null;
+  const [r] = await db()<
+    {
+      reference: string; salon_nom: string; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
+      souhait_moment: Moment | null; debut: Date | null; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
+    }[]
+  >`
+    SELECT p.reference, s.nom AS salon_nom, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
+           k.nom AS categorie, p.motif_refus,
+           COALESCE((SELECT array_agg(c.nom ORDER BY c.nom) FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id
+                     WHERE a.prestation_id = p.id AND a.active), '{}') AS coiffeuses
+    FROM prestation p
+    JOIN salon s ON s.id = p.salon_id
+    LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
+    WHERE p.reference = ${reference} AND p.canal = 'en_ligne'`;
+  if (!r) return null;
+  return {
+    reference: r.reference,
+    salonNom: r.salon_nom,
+    salonWhatsapp: r.salon_whatsapp,
+    prenom: r.client_nom.trim().split(/\s+/)[0],
+    statut: r.statut,
+    jour: r.jour,
+    moment: r.souhait_moment,
+    heure: r.debut ? r.debut.toISOString().slice(11, 16) : null,
+    categorie: r.categorie,
+    coiffeuses: r.coiffeuses,
+    motifRefus: r.motif_refus,
+  };
 }
