@@ -186,6 +186,53 @@ await verifier("La gérante renseigne le WhatsApp du salon ; l'accueil le propos
 
 // Le suivi est rendu en streaming : le statut HTTP part avant la recherche (200), mais la page
 // « introuvable » est bien affichée et marquée noindex. On vérifie donc ce que voit la cliente.
+const PHOTO = process.env.PHOTO_MODELE;
+if (PHOTO) {
+  await verifier("La gérante ajoute un modèle photo (FR-C02)", async () => {
+    await secretaire.goto(`${BASE}/salon/modeles`);
+    await secretaire.getByRole("button", { name: "+ Ajouter un modèle" }).click();
+    await secretaire.locator('input[type="file"]').setInputFiles(PHOTO);
+    await secretaire.getByAltText("Aperçu du modèle").waitFor();
+    await secretaire.getByLabel("Nom du modèle").fill(`Nattes et vanilles ${SUFFIXE}`);
+    await secretaire.getByRole("group", { name: "Type de coiffure" }).getByRole("button", { name: "Tresses", exact: true }).click();
+    await secretaire.getByLabel("Prix min. (FCFA)").fill("5000");
+    await secretaire.getByLabel("Prix max. (FCFA)").fill("12000");
+    await secretaire.getByLabel("Durée min.").selectOption("180");
+    await largeurOk(secretaire, "modèle");
+    await capture(secretaire, "08-nouveau-modele");
+    await secretaire.getByRole("button", { name: "Ajouter au catalogue" }).click();
+    await secretaire.getByText(`Nattes et vanilles ${SUFFIXE}`).first().waitFor();
+    await capture(secretaire, "09-catalogue");
+  });
+
+  await verifier("La cliente choisit le modèle sur l'accueil et l'envoie (FR-C04, FR-C05)", async () => {
+    await cliente.goto(`${BASE}/`);
+    await cliente.getByRole("heading", { name: "Nos réalisations" }).waitFor();
+    await capture(cliente, "10-accueil-modeles");
+    await cliente.getByRole("link", { name: new RegExp(`Nattes et vanilles ${SUFFIXE}`) }).click();
+    await cliente.waitForURL(/\/reserver\?modele=/);
+    const choisi = cliente.getByRole("button", { name: new RegExp(`Nattes et vanilles ${SUFFIXE}`) });
+    if ((await choisi.getAttribute("aria-pressed")) !== "true") throw new Error("modèle non présélectionné");
+    await cliente.getByLabel("5. Votre nom").fill(`Fanta ${SUFFIXE}`);
+    await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
+    await largeurOk(cliente, "formulaire avec modèles");
+    await capture(cliente, "11-formulaire-modele");
+    await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
+    await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
+    await cliente.getByText("Modèle choisi").waitFor();
+  });
+
+  await verifier("Le salon voit la photo du modèle et la durée proposée", async () => {
+    await secretaire.goto(`${BASE}/salon`);
+    await secretaire.getByAltText(`Nattes et vanilles ${SUFFIXE}`).first().waitFor();
+    const carte = secretaire.locator("div.rounded-xl", { hasText: `Fanta ${SUFFIXE}` }).filter({ has: secretaire.getByRole("button", { name: "Confirmer" }) });
+    await carte.getByRole("button", { name: "Confirmer" }).click();
+    const troisH = secretaire.getByRole("group", { name: "Durée estimée" }).getByRole("button", { name: "3 h", exact: true });
+    if ((await troisH.getAttribute("aria-pressed")) !== "true") throw new Error("durée du modèle non reprise");
+    await capture(secretaire, "12-confirmer-modele");
+  });
+}
+
 await verifier("Une référence inconnue affiche « Page introuvable »", async () => {
   await cliente.goto(`${BASE}/demande/ZZZZZZZZ`);
   await cliente.getByText("Page introuvable").waitFor();

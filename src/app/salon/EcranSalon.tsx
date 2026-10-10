@@ -119,12 +119,17 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
           {demandes.map((d) => (
             <Carte key={d.id} className="border-or">
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                {d.modele && (
+                  // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application
+                  <img src={d.modele.photoUrl} alt={d.modele.nom} className="size-16 shrink-0 rounded-lg object-cover" />
+                )}
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold">{d.clientNom}</p>
                   <p className="text-sm">
                     {capitalize(formatDateMedium(d.jour))} · {libelleMoment(d.moment)}
                   </p>
                   <p className="text-sm text-sourdine">
+                    {d.modele ? `${d.modele.nom} · ` : ""}
                     {d.categorie ?? "Type à préciser"}
                     {d.coiffeuseSouhaitee ? ` · souhaite ${d.coiffeuseSouhaitee.nom}` : ""}
                   </p>
@@ -616,7 +621,7 @@ function FormConfirmerDemande({
   const [enCours, start] = useTransition();
   const [jour, setJour] = useState(demande.jour < aujourdhui ? aujourdhui : demande.jour);
   const [heure, setHeure] = useState((demande.moment && HEURE_PAR_MOMENT[demande.moment]) || "09:00");
-  const [duree, setDuree] = useState(180);
+  const [duree, setDuree] = useState(demande.dureeMin);
   const [choisies, setChoisies] = useState<string[]>(demande.coiffeuseSouhaitee ? [demande.coiffeuseSouhaitee.id] : []);
   const libres = useCoiffeusesLibres({ jour, heure, dureeMin: duree, ignorer: demande.id, categorieId: demande.categorieId });
   const valides = garderLibres(choisies, libres);
@@ -640,6 +645,15 @@ function FormConfirmerDemande({
         sousTitre={`${demande.clientNom} · ${demande.categorie ?? "type à préciser"} · ${libelleMoment(demande.moment)}`}
         onRetour={onFini}
       />
+      {demande.modele && (
+        <div className="mb-4 flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
+          <img src={demande.modele.photoUrl} alt="" className="size-20 rounded-xl object-cover" />
+          <p className="text-sm">
+            Modèle choisi : <span className="font-semibold">{demande.modele.nom}</span>
+          </p>
+        </div>
+      )}
       {demande.remarque && <p className="mb-4 rounded-xl bg-gris px-3 py-2 text-sm">« {demande.remarque} »</p>}
       {souhaiteePrise && (
         <p className="mb-4 rounded-xl bg-rouge-pale px-3 py-2 text-sm text-rouge">

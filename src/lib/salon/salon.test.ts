@@ -170,3 +170,24 @@ describe("messages WhatsApp", async () => {
     expect(m).toMatch(/^Bonjour Awa,/);
   });
 });
+
+describe("catalogue de modèles", async () => {
+  const { typeImage, verifierFourchettes, fourchettePrix, fourchetteDuree } = await import("./regles");
+  it("reconnaît le vrai format d'une image", () => {
+    expect(typeImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe("image/jpeg");
+    expect(typeImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe("image/png");
+    expect(typeImage(new TextEncoder().encode("<svg onload=alert(1)>"))).toBeNull();
+  });
+  it("vérifie les fourchettes de prix et de durée", () => {
+    expect(verifierFourchettes({ prixMin: 5000, prixMax: 15000, dureeMin: 120, dureeMax: 240 })).toBeNull();
+    expect(verifierFourchettes({ prixMin: 15000, prixMax: 5000, dureeMin: null, dureeMax: null })).toMatch(/maximum/);
+    expect(verifierFourchettes({ prixMin: null, prixMax: null, dureeMin: 100, dureeMax: null })).toMatch(/Durée/);
+  });
+  it("affiche les fourchettes lisiblement", () => {
+    expect(fourchettePrix(5000, 15000)).toBe("5\u00a0000 – 15\u00a0000\u00a0FCFA");
+    expect(fourchettePrix(5000, null)).toBe("à partir de 5\u00a0000\u00a0FCFA");
+    expect(fourchettePrix(null, null)).toBe("");
+    expect(fourchetteDuree(120, 240)).toBe("2\u00a0h – 4\u00a0h");
+    expect(fourchetteDuree(150, 150)).toBe("environ 2\u00a0h\u00a030");
+  });
+});

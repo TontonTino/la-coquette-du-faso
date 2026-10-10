@@ -45,3 +45,13 @@ Exigence → code → test → résultat. Résultats obtenus le **10/10/2026** s
 | SEC-B02 Pas de données personnelles en public | `suiviDemande` (prénom seul) | int. · e2e « n'affiche pas le numéro » | ✅ |
 
 Limite connue : une référence inconnue affiche « Page introuvable » (et noindex), mais avec un code HTTP 200, car la page est envoyée par morceaux (streaming). Sans effet pour les clientes.
+
+## Catalogue de modèles en photo (10/10/2026)
+
+| Exigence | Code | Test | Résultat |
+|---|---|---|---|
+| FR-C01 Modèle | migration 004, `verifierFourchettes` | unit. fourchettes · int. « refuse les photos invalides… » | ✅ |
+| FR-C02 Ajout photo | `ajouterModele`, `typeImage`, `image-client.ts`, `salon/modeles` | int. (format, taille, rôle) · e2e « La gérante ajoute un modèle photo » | ✅ |
+| FR-C03 Modifier / retirer | `modifierModele` | int. « une demande sur photo… » (modèle retiré refusé) | ✅ |
+| FR-C04 Galerie publique | `src/app/page.tsx`, `FormulaireDemande`, route `/modeles/[id]/photo` | int. · e2e « La cliente choisit le modèle » | ✅ |
+| FR-C05 Demande sur photo | `creerDemande` (type et durée du modèle), `EcranSalon` | int. · e2e « Le salon voit la photo du modèle et la durée proposée » | ✅ |

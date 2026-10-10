@@ -146,3 +146,17 @@ Réservation en ligne par les clientes (phase B), paiement en ligne, envoi autom
 | FR-B08 | La gérante renseigne le numéro WhatsApp du salon, proposé aux clientes pour envoyer la photo du modèle. | Le bouton « Écrire au salon » apparaît sur l'accueil. | S | T |
 | SEC-B01 | Anti-abus : 3 demandes en attente au plus par numéro, 60 demandes en ligne par heure au plus, piège à robots. | Une 4e demande avec le même numéro est refusée avec un message clair. | M | T |
 | SEC-B02 | Les pages publiques n'affichent jamais de numéro de téléphone ni de nom complet de cliente. | La page de suivi n'affiche que le prénom. | M | T |
+
+---
+
+# Catalogue de modèles en photo
+
+*Ajouté le 10/10/2026 : les clientes choisissent leur coiffure sur photo (entretien du 10/10).*
+
+| ID | Exigence | Critère d'acceptation | Prio. | Vérif. |
+|---|---|---|---|---|
+| FR-C01 | Un modèle = une photo, un nom, un type de coiffure (facultatif), un prix et une durée indicatifs (fourchettes facultatives). | Un maximum inférieur au minimum est refusé. | M | T |
+| FR-C02 | La gérante ajoute un modèle depuis son téléphone ; la photo est réduite avant l'envoi (environ 900 px). | Seules les vraies images JPEG, PNG ou WebP de 800 Ko maximum sont acceptées (format vérifié aux premiers octets). | M | T |
+| FR-C03 | Elle modifie un modèle, remplace sa photo ou le retire du catalogue sans effacer les demandes passées. | Un modèle retiré n'est plus visible ni demandable. | M | T |
+| FR-C04 | Les clientes voient les modèles sur l'accueil (« Nos réalisations ») et dans le formulaire de demande. | Toucher un modèle ouvre le formulaire avec ce modèle déjà choisi. | M | T (e2e) |
+| FR-C05 | Une demande faite sur photo reprend le type de coiffure et la durée du modèle ; la secrétaire voit la photo. | Les coiffeuses proposées sont celles qui savent faire ce type ; la durée du modèle est présélectionnée à la confirmation. | M | T |

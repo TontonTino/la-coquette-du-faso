@@ -19,9 +19,12 @@ import {
   nouvelleReference,
   verifierJourDemande,
   verifierMoment,
+  verifierFourchettes,
+  typeImage,
+  PHOTO_TAILLE_MAX,
 } from "@/lib/salon/regles";
 import { randomBytes } from "node:crypto";
-import type { Categorie, Coiffeuse, Jour, Moment, Paiement, Prestation, Resultat, Role, Statut } from "@/lib/salon/types";
+import type { Categorie, Coiffeuse, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
 import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
 
@@ -536,6 +539,8 @@ export interface Demande {
   coiffeuseSouhaitee: { id: string; nom: string } | null;
   remarque: string | null;
   recueLe: string;
+  dureeMin: number;
+  modele: { nom: string; photoUrl: string } | null;
 }
 
 export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
@@ -544,11 +549,13 @@ export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
     {
       id: string; reference: string; client_nom: string; client_tel: string; categorie_id: string | null; categorie: string | null;
       jour: string; souhait_moment: Moment | null; cs_id: string | null; cs_nom: string | null; modele: string | null; cree_le: Date;
+      duree_min: number; m_id: string | null; m_nom: string | null; m_maj: Date | null;
     }[]
   >`
     SELECT p.id, p.reference, p.client_nom, p.client_tel, p.categorie_id, k.nom AS categorie, p.jour, p.souhait_moment,
-           c.id AS cs_id, c.nom AS cs_nom, p.modele, p.cree_le
+           c.id AS cs_id, c.nom AS cs_nom, p.modele, p.cree_le, p.duree_min, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj
     FROM prestation p
+    LEFT JOIN modele m ON m.id = p.modele_id AND m.salon_id = p.salon_id
     LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
     LEFT JOIN coiffeuse c ON c.id = p.coiffeuse_souhaitee AND c.salon_id = p.salon_id
     WHERE p.salon_id = ${ctx.salonId} AND p.statut = 'demandee'
@@ -565,6 +572,8 @@ export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
     coiffeuseSouhaitee: r.cs_id ? { id: r.cs_id, nom: r.cs_nom! } : null,
     remarque: r.modele,
     recueLe: r.cree_le.toISOString(),
+    dureeMin: r.duree_min,
+    modele: r.m_id ? { nom: r.m_nom!, photoUrl: urlPhoto(r.m_id, r.m_maj!) } : null,
   }));
 }
 
@@ -614,6 +623,7 @@ export interface SalonPublic {
   whatsapp: string | null;
   categories: Categorie[];
   coiffeuses: { id: string; nom: string; categorieIds: string[]; joursConge: number[] }[];
+  modeles: Modele[];
 }
 
 async function salonParSlug(slug: string): Promise<{ id: string; nom: string; whatsapp: string | null } | null> {
@@ -627,11 +637,12 @@ export async function salonPublic(slug: string): Promise<SalonPublic | null> {
   const s = await salonParSlug(slug);
   if (!s) return null;
   const ctx: Ctx = { salonId: s.id, utilisateurId: "", role: "secretaire" };
-  const [coiffeuses, categories] = await Promise.all([lireCoiffeuses(ctx), lireCategories(ctx)]);
+  const [coiffeuses, categories, modeles] = await Promise.all([lireCoiffeuses(ctx), lireCategories(ctx), lireModeles(ctx, false)]);
   return {
     nom: s.nom,
     whatsapp: s.whatsapp,
     categories,
+    modeles,
     coiffeuses: coiffeuses.filter((c) => c.actif).map((c) => ({ id: c.id, nom: c.nom, categorieIds: c.categorieIds, joursConge: c.joursConge })),
   };
 }
@@ -640,6 +651,8 @@ export interface SaisieDemande {
   clientNom: string;
   clientTel: string;
   categorieId: string | null;
+  /** Modèle choisi sur photo (facultatif). */
+  modeleId: string | null;
   jour: Jour;
   moment: string | null;
   coiffeuseSouhaitee: string | null;
@@ -663,6 +676,7 @@ export async function creerDemande(slug: string, s: SaisieDemande, now = new Dat
     verifierModele(s.remarque);
   if (erreur) return ko(erreur);
   if (s.coiffeuseSouhaitee !== null && !estUuid(s.coiffeuseSouhaitee)) return ko("Coiffeuse inconnue.");
+  if (s.modeleId !== null && !estUuid(s.modeleId)) return ko("Modèle inconnu.");
 
   return transaction(async (tx) => {
     // Anti-abus (SEC-B01) : limite les demandes en attente par numéro et le volume par heure.
@@ -677,16 +691,26 @@ export async function creerDemande(slug: string, s: SaisieDemande, now = new Dat
       WHERE salon_id = ${ctx.salonId} AND canal = 'en_ligne' AND cree_le > ${new Date(now.getTime() - 3_600_000)}`;
     if (h >= 60) throw new Refus("Beaucoup de demandes en ce moment : réessayez dans quelques minutes ou écrivez au salon sur WhatsApp.");
 
-    await verifierCategorie(tx, ctx, s.categorieId);
-    if (s.coiffeuseSouhaitee) await verifierCoiffeuses(tx, ctx, [s.coiffeuseSouhaitee], s.jour, s.categorieId);
+    // Un modèle choisi sur photo donne son type de coiffure et sa durée habituelle.
+    let categorieId = s.categorieId;
+    let duree = 180;
+    if (s.modeleId) {
+      const [m] = await tx<{ categorie_id: string | null; duree_min: number | null }[]>`
+        SELECT categorie_id, duree_min FROM modele WHERE id = ${s.modeleId} AND salon_id = ${ctx.salonId} AND actif`;
+      if (!m) throw new Refus("Ce modèle n'est plus proposé.");
+      categorieId = categorieId ?? m.categorie_id;
+      duree = m.duree_min ?? duree;
+    }
+    await verifierCategorie(tx, ctx, categorieId);
+    if (s.coiffeuseSouhaitee) await verifierCoiffeuses(tx, ctx, [s.coiffeuseSouhaitee], s.jour, categorieId);
 
     for (let essai = 0; essai < 5; essai++) {
       const reference = nouvelleReference((n) => randomBytes(n));
       const r = await tx<{ reference: string }[]>`
-        INSERT INTO prestation (salon_id, origine, statut, canal, reference, client_nom, client_tel, modele, categorie_id,
+        INSERT INTO prestation (salon_id, origine, statut, canal, reference, client_nom, client_tel, modele, categorie_id, modele_id,
                                 jour, duree_min, souhait_moment, coiffeuse_souhaitee)
         VALUES (${ctx.salonId}, 'rendez_vous', 'demandee', 'en_ligne', ${reference}, ${s.clientNom.trim()}, ${tel.tel},
-                ${s.remarque.trim() || null}, ${s.categorieId}, ${s.jour}, 180, ${s.moment}, ${s.coiffeuseSouhaitee})
+                ${s.remarque.trim() || null}, ${categorieId}, ${s.modeleId}, ${s.jour}, ${duree}, ${s.moment}, ${s.coiffeuseSouhaitee})
         ON CONFLICT (reference) DO NOTHING
         RETURNING reference`;
       if (r.length) return { reference: r[0].reference };
@@ -707,6 +731,7 @@ export interface SuiviDemande {
   categorie: string | null;
   coiffeuses: string[];
   motifRefus: string | null;
+  modele: { nom: string; photoUrl: string } | null;
 }
 
 /** FR-B03 : suivi par référence. Ne renvoie ni le téléphone ni le nom complet. */
@@ -716,15 +741,17 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
     {
       reference: string; salon_nom: string; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
       souhait_moment: Moment | null; debut: Date | null; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
+      m_id: string | null; m_nom: string | null; m_maj: Date | null;
     }[]
   >`
     SELECT p.reference, s.nom AS salon_nom, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
-           k.nom AS categorie, p.motif_refus,
+           k.nom AS categorie, p.motif_refus, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj,
            COALESCE((SELECT array_agg(c.nom ORDER BY c.nom) FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id
                      WHERE a.prestation_id = p.id AND a.active), '{}') AS coiffeuses
     FROM prestation p
     JOIN salon s ON s.id = p.salon_id
     LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
+    LEFT JOIN modele m ON m.id = p.modele_id AND m.salon_id = p.salon_id
     WHERE p.reference = ${reference} AND p.canal = 'en_ligne'`;
   if (!r) return null;
   return {
@@ -739,5 +766,116 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
     categorie: r.categorie,
     coiffeuses: r.coiffeuses,
     motifRefus: r.motif_refus,
+    modele: r.m_id ? { nom: r.m_nom!, photoUrl: urlPhoto(r.m_id, r.m_maj!) } : null,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Catalogue de modèles en photo (FR-C01 à FR-C05)                     */
+/* ------------------------------------------------------------------ */
+
+/** Adresse de la photo ; le paramètre v change à chaque modification (cache navigateur sûr). */
+const urlPhoto = (id: string, maj: Date) => `/modeles/${id}/photo?v=${maj.getTime().toString(36)}`;
+
+async function lireModeles(ctx: Ctx, inclureInactifs: boolean): Promise<Modele[]> {
+  const rows = await db()<
+    { id: string; nom: string; categorie_id: string | null; prix_min: number | null; prix_max: number | null;
+      duree_min: number | null; duree_max: number | null; actif: boolean; maj_le: Date }[]
+  >`
+    SELECT id, nom, categorie_id, prix_min, prix_max, duree_min, duree_max, actif, maj_le FROM modele
+    WHERE salon_id = ${ctx.salonId} AND (actif OR ${inclureInactifs})
+    ORDER BY actif DESC, ordre, cree_le`;
+  return rows.map((r) => ({
+    id: r.id,
+    nom: r.nom,
+    categorieId: r.categorie_id,
+    photoUrl: urlPhoto(r.id, r.maj_le),
+    prixMin: r.prix_min,
+    prixMax: r.prix_max,
+    dureeMin: r.duree_min,
+    dureeMax: r.duree_max,
+    actif: r.actif,
+  }));
+}
+
+export async function listerModeles(ctx: Ctx): Promise<Modele[]> {
+  autoriser(ctx, GERANTE);
+  return lireModeles(ctx, true);
+}
+
+export interface SaisieModele {
+  nom: string;
+  categorieId: string | null;
+  prixMin: number | null;
+  prixMax: number | null;
+  dureeMin: number | null;
+  dureeMax: number | null;
+  /** Photo encodée en base64 (avec ou sans préfixe data:) ; facultative en modification. */
+  photo: string | null;
+  actif?: boolean;
+}
+
+function decoderPhoto(b64: string): { octets: Buffer; type: string } | { erreur: string } {
+  const brut = b64.replace(/^data:[^;]+;base64,/, "");
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(brut)) return { erreur: "Photo illisible." };
+  const octets = Buffer.from(brut, "base64");
+  if (octets.length < 1000) return { erreur: "Photo trop petite ou vide." };
+  if (octets.length > PHOTO_TAILLE_MAX) return { erreur: "Photo trop lourde : réessayez, elle sera réduite automatiquement." };
+  const type = typeImage(octets);
+  if (!type) return { erreur: "Format non accepté : utilisez une photo JPEG, PNG ou WebP." };
+  return { octets, type };
+}
+
+function verifierSaisieModele(s: SaisieModele): string | null {
+  const n = s.nom.trim();
+  if (n.length < 2 || n.length > 60) return "Le nom du modèle doit faire entre 2 et 60 caractères.";
+  if (s.categorieId !== null && !estUuid(s.categorieId)) return "Type de coiffure inconnu.";
+  return verifierFourchettes(s);
+}
+
+/** FR-C02 : la gérante ajoute un modèle avec sa photo. */
+export async function ajouterModele(ctx: Ctx, s: SaisieModele): Promise<R<string>> {
+  autoriser(ctx, GERANTE);
+  const erreur = verifierSaisieModele(s) ?? (s.photo ? null : "Ajoutez une photo du modèle.");
+  if (erreur) return ko(erreur);
+  const photo = decoderPhoto(s.photo!);
+  if ("erreur" in photo) return ko(photo.erreur);
+  return transaction(async (tx) => {
+    await verifierCategorie(tx, ctx, s.categorieId);
+    const [{ n }] = await tx<{ n: number }[]>`SELECT COALESCE(max(ordre), 0) + 1 AS n FROM modele WHERE salon_id = ${ctx.salonId}`;
+    const [m] = await tx<{ id: string }[]>`
+      INSERT INTO modele (salon_id, categorie_id, nom, photo, photo_type, prix_min, prix_max, duree_min, duree_max, ordre)
+      VALUES (${ctx.salonId}, ${s.categorieId}, ${s.nom.trim()}, ${photo.octets}, ${photo.type},
+              ${s.prixMin}, ${s.prixMax}, ${s.dureeMin}, ${s.dureeMax}, ${n})
+      RETURNING id`;
+    return m.id;
+  });
+}
+
+/** FR-C03 : modifier, remplacer la photo, retirer du catalogue (sans effacer l'historique des demandes). */
+export async function modifierModele(ctx: Ctx, id: string, s: SaisieModele): Promise<R> {
+  autoriser(ctx, GERANTE);
+  if (!estUuid(id)) return ko("Modèle inconnu.");
+  const erreur = verifierSaisieModele(s);
+  if (erreur) return ko(erreur);
+  const photo = s.photo ? decoderPhoto(s.photo) : null;
+  if (photo && "erreur" in photo) return ko(photo.erreur);
+  return transaction(async (tx) => {
+    await verifierCategorie(tx, ctx, s.categorieId);
+    const r = await tx`
+      UPDATE modele SET nom = ${s.nom.trim()}, categorie_id = ${s.categorieId}, prix_min = ${s.prixMin}, prix_max = ${s.prixMax},
+             duree_min = ${s.dureeMin}, duree_max = ${s.dureeMax}, actif = ${s.actif !== false},
+             photo = COALESCE(${photo ? photo.octets : null}::bytea, photo),
+             photo_type = COALESCE(${photo ? photo.type : null}, photo_type), maj_le = now()
+      WHERE id = ${id} AND salon_id = ${ctx.salonId} RETURNING id`;
+    if (r.length === 0) throw new Refus("Modèle inconnu.");
+    return undefined;
+  });
+}
+
+/** FR-C04 : photo publique d'un modèle du catalogue (seulement s'il est proposé). */
+export async function photoModele(id: string): Promise<{ octets: Buffer; type: string } | null> {
+  if (!estUuid(id)) return null;
+  const [r] = await db()<{ photo: Buffer; photo_type: string }[]>`SELECT photo, photo_type FROM modele WHERE id = ${id} AND actif`;
+  return r ? { octets: r.photo, type: r.photo_type } : null;
 }

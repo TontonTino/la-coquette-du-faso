@@ -182,3 +182,39 @@ export async function refuserDemandeAction(id: string, motif: string) {
 export async function modifierWhatsappSalonAction(whatsapp: string) {
   return executer(async () => svc.modifierWhatsappSalon(await exigerAction(["gerante"]), texte(whatsapp, 30)));
 }
+
+/* ---------------- Catalogue de modèles (gérante) ---------------- */
+
+export interface SaisieModeleClient {
+  nom: string;
+  categorieId: string | null;
+  prixMin: number | null;
+  prixMax: number | null;
+  dureeMin: number | null;
+  dureeMax: number | null;
+  photo: string | null;
+  actif?: boolean;
+}
+
+const nombreOuNull = (v: unknown) => (v === null || v === undefined || v === "" ? null : entier(v));
+
+function saisieModele(s: SaisieModeleClient): svc.SaisieModele {
+  return {
+    nom: texte(s?.nom, 80),
+    categorieId: idOuNull(s?.categorieId),
+    prixMin: nombreOuNull(s?.prixMin),
+    prixMax: nombreOuNull(s?.prixMax),
+    dureeMin: nombreOuNull(s?.dureeMin),
+    dureeMax: nombreOuNull(s?.dureeMax),
+    photo: typeof s?.photo === "string" ? s.photo.slice(0, 1_200_000) : null,
+    actif: s?.actif !== false,
+  };
+}
+
+export async function ajouterModeleAction(s: SaisieModeleClient) {
+  return executer(async () => svc.ajouterModele(await exigerAction(["gerante"]), saisieModele(s)));
+}
+
+export async function modifierModeleAction(id: string, s: SaisieModeleClient) {
+  return executer(async () => svc.modifierModele(await exigerAction(["gerante"]), texte(id, 40), saisieModele(s)));
+}

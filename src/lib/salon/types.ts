@@ -18,6 +18,19 @@ export interface Coiffeuse {
   categorieIds: string[];
 }
 
+/** Modèle du catalogue : une photo de coiffure, avec prix et durée indicatifs (FR-C01). */
+export interface Modele {
+  id: string;
+  nom: string;
+  categorieId: string | null;
+  photoUrl: string;
+  prixMin: number | null;
+  prixMax: number | null;
+  dureeMin: number | null;
+  dureeMax: number | null;
+  actif: boolean;
+}
+
 /** Type (famille) de coiffure défini par la gérante : tresses, nattes collées, tissage… */
 export interface Categorie {
   id: string;

@@ -26,5 +26,6 @@ async function Donnees({ searchParams }: { searchParams: PageProps<"/reserver">[
   const [salon, sp] = await Promise.all([salonPublic(SALON_PUBLIC), searchParams]);
   if (!salon) return <p className="mt-6">Les demandes en ligne ne sont pas encore ouvertes.</p>;
   const type = typeof sp.type === "string" && salon.categories.some((c) => c.id === sp.type) ? sp.type : "";
-  return <FormulaireDemande salon={salon} aujourdhui={todayIso()} typeInitial={type} />;
+  const modele = typeof sp.modele === "string" && salon.modeles.some((m) => m.id === sp.modele) ? sp.modele : "";
+  return <FormulaireDemande salon={salon} aujourdhui={todayIso()} typeInitial={type} modeleInitial={modele} />;
 }

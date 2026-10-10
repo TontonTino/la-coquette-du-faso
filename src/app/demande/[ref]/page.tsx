@@ -53,6 +53,16 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
         {(d.statut === "refusee" ? d.motifRefus : e.texte) && <p className="mt-1">{d.statut === "refusee" ? `Motif : ${d.motifRefus}.` : e.texte}</p>}
       </div>
 
+      {d.modele && (
+        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-trait bg-white p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
+          <img src={d.modele.photoUrl} alt="" className="size-16 rounded-xl object-cover" />
+          <div>
+            <p className="text-xs text-sourdine">Modèle choisi</p>
+            <p className="font-semibold">{d.modele.nom}</p>
+          </div>
+        </div>
+      )}
       <dl className="mt-4 divide-y divide-trait rounded-2xl border border-trait bg-white">
         <Ligne terme="Jour" valeur={capitalize(formatDateLong(d.jour))} />
         <Ligne terme="Heure" valeur={d.heure ? d.heure.replace(":", " h ") : `${libelleMoment(d.moment)} — heure exacte à confirmer`} />

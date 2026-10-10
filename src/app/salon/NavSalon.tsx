@@ -10,6 +10,7 @@ export function NavSalon({ gerante }: { gerante: boolean }) {
     { href: "/salon/coiffeuses", label: "Coiffeuses" },
     ...(gerante
       ? [
+          { href: "/salon/modeles", label: "Modèles" },
           { href: "/salon/bilan", label: "Bilan" },
           { href: "/salon/equipe", label: "Équipe" },
         ]

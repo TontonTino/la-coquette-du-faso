@@ -15,6 +15,7 @@ export async function envoyerDemandeAction(s: {
   clientNom: string;
   clientTel: string;
   categorieId: string | null;
+  modeleId: string | null;
   jour: string;
   moment: string | null;
   coiffeuseSouhaitee: string | null;
@@ -26,6 +27,7 @@ export async function envoyerDemandeAction(s: {
       clientNom: texte(s?.clientNom, 80),
       clientTel: texte(s?.clientTel, 30),
       categorieId: idOuNull(s?.categorieId),
+      modeleId: idOuNull(s?.modeleId),
       jour: texte(s?.jour, 10),
       moment: idOuNull(s?.moment),
       coiffeuseSouhaitee: idOuNull(s?.coiffeuseSouhaitee),

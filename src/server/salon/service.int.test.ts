@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -41,7 +41,7 @@ suite("service salon (PostgreSQL)", () => {
   });
 
   beforeEach(async () => {
-    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence CASCADE");
+    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence, modele CASCADE");
     const [sa] = await admin`INSERT INTO salon (nom, slug) VALUES ('Salon A', 'salon-a') RETURNING id`;
     const [sb] = await admin`INSERT INTO salon (nom) VALUES ('Salon B') RETURNING id`;
     const [ga] = await admin`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES (${sa.id}, 'gerante-a', 'Gérante A', 'gerante', 'x') RETURNING id`;
@@ -221,6 +221,7 @@ suite("service salon (PostgreSQL)", () => {
     clientNom: "Aminata Ouédraogo",
     clientTel: "70 11 22 33",
     categorieId: c.tresses,
+    modeleId: null,
     jour: "2026-10-12", // lundi : Awa et Fatim sont en congé le lundi dans ce jeu de test
     moment: "matin",
     coiffeuseSouhaitee: null,
@@ -298,5 +299,62 @@ suite("service salon (PostgreSQL)", () => {
     expect(await svc.modifierWhatsappSalon(secA, "70 00 00 00").catch((e) => e.message)).toMatch(/non autorisée/);
     expect(await svc.modifierWhatsappSalon(A, "70 00 00 00")).toEqual({ ok: true, valeur: undefined });
     expect((await svc.salonPublic("salon-a"))?.whatsapp).toBe("+226 70 00 00 00");
+  });
+
+  /* ---------------- Catalogue de modèles en photo ---------------- */
+
+  // Faux JPEG : bons premiers octets, taille réaliste (le serveur vérifie le format et la taille).
+  const jpeg = "data:image/jpeg;base64," + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(4000, 7)]).toString("base64");
+  const modele = (over: Partial<import("./service").SaisieModele> = {}): import("./service").SaisieModele => ({
+    nom: "Nattes et vanilles",
+    categorieId: c.tresses,
+    prixMin: 5000,
+    prixMax: 12000,
+    dureeMin: 150,
+    dureeMax: 240,
+    photo: jpeg,
+    ...over,
+  });
+
+  it("la gérante ajoute un modèle photo ; il apparaît sur la page publique (FR-C01, FR-C02, FR-C04)", async () => {
+    await expect(svc.ajouterModele(secA, modele())).rejects.toThrow(/non autorisée/);
+    const m = await svc.ajouterModele(A, modele());
+    if (!m.ok) throw new Error(m.erreur);
+    const pub = await svc.salonPublic("salon-a");
+    expect(pub?.modeles).toHaveLength(1);
+    expect(pub?.modeles[0]).toMatchObject({ nom: "Nattes et vanilles", prixMin: 5000, dureeMin: 150, categorieId: c.tresses });
+    expect(pub?.modeles[0].photoUrl).toMatch(new RegExp(`^/modeles/${m.valeur}/photo\\?v=`));
+    const photo = await svc.photoModele(m.valeur);
+    expect(photo?.type).toBe("image/jpeg");
+    expect(photo?.octets.length).toBe(4004);
+  });
+
+  it("refuse les photos invalides et les fourchettes incohérentes", async () => {
+    const svg = "data:image/svg+xml;base64," + Buffer.from("<svg onload=alert(1)>" + "x".repeat(2000)).toString("base64");
+    expect(await svc.ajouterModele(A, modele({ photo: svg }))).toMatchObject({ ok: false, erreur: expect.stringMatching(/Format non accepté/) });
+    expect(await svc.ajouterModele(A, modele({ photo: null }))).toEqual({ ok: false, erreur: "Ajoutez une photo du modèle." });
+    const lourde = "data:image/jpeg;base64," + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(900_000)]).toString("base64");
+    expect(await svc.ajouterModele(A, modele({ photo: lourde }))).toMatchObject({ ok: false, erreur: expect.stringMatching(/trop lourde/) });
+    expect(await svc.ajouterModele(A, modele({ prixMin: 9000, prixMax: 3000 }))).toMatchObject({ ok: false });
+    expect(await svc.ajouterModele(A, modele({ categorieId: c.tressesB }))).toEqual({ ok: false, erreur: "Type de coiffure inconnu." });
+  });
+
+  it("une demande sur photo reprend le type et la durée du modèle (FR-C05)", async () => {
+    const m = await svc.ajouterModele(A, modele());
+    if (!m.ok) throw new Error(m.erreur);
+    const d = await svc.creerDemande("salon-a", demande({ categorieId: null, modeleId: m.valeur, jour: "2026-10-13" }), NOW);
+    if (!d.ok) throw new Error(d.erreur);
+    const [att] = await svc.demandesEnAttente(secA);
+    expect(att).toMatchObject({ categorieId: c.tresses, categorie: "Tresses", dureeMin: 150, modele: { nom: "Nattes et vanilles" } });
+    expect((await svc.suiviDemande(d.valeur.reference))?.modele?.nom).toBe("Nattes et vanilles");
+    // Un modèle d'un autre salon ou retiré du catalogue est refusé
+    const mb = await svc.ajouterModele(B, modele({ categorieId: c.tressesB }));
+    if (!mb.ok) throw new Error(mb.erreur);
+    expect(await svc.creerDemande("salon-a", demande({ modeleId: mb.valeur, clientTel: "70 99 99 99" }), NOW)).toEqual({ ok: false, erreur: "Ce modèle n'est plus proposé." });
+    await svc.modifierModele(A, m.valeur, modele({ photo: null, actif: false }));
+    expect((await svc.salonPublic("salon-a"))?.modeles).toEqual([]);
+    expect(await svc.photoModele(m.valeur)).toBeNull();
+    expect((await svc.listerModeles(A)).map((x) => x.actif)).toEqual([false]);
+    expect(await svc.creerDemande("salon-a", demande({ modeleId: m.valeur, clientTel: "70 88 88 88" }), NOW)).toEqual({ ok: false, erreur: "Ce modèle n'est plus proposé." });
   });
 });

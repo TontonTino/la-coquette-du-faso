@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { HabillagePublic } from "@/components/public/Habillage";
 import { buttonClasses } from "@/components/ui/Button";
+import { fourchettePrix } from "@/lib/salon/regles";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
 import { SALON_PUBLIC } from "@/server/salon/public-config";
 import { salonPublic } from "@/server/salon/service";
@@ -68,6 +69,28 @@ async function TypesEtContact() {
   const wa = salon.whatsapp ? lienWhatsApp(salon.whatsapp, "Bonjour, j'ai une question pour un rendez-vous.") : null;
   return (
     <>
+      {salon.modeles.length > 0 && (
+        <section className="mt-10" aria-labelledby="titre-modeles">
+          <h2 id="titre-modeles" className="font-display text-2xl font-bold">
+            Nos réalisations
+          </h2>
+          <p className="mt-1 text-sm text-sourdine">Touchez un modèle pour le demander.</p>
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {salon.modeles.map((m) => (
+              <li key={m.id}>
+                <Link href={`/reserver?modele=${m.id}`} className="block overflow-hidden rounded-2xl border border-trait bg-white hover:border-or">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
+                  <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />
+                  <span className="block p-3">
+                    <span className="block text-sm font-semibold">{m.nom}</span>
+                    {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {salon.categories.length > 0 && (
         <section className="mt-10" aria-labelledby="titre-coiffures">
           <h2 id="titre-coiffures" className="font-display text-2xl font-bold">

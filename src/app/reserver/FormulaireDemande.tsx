@@ -4,16 +4,30 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Champ, Choix, classeInput } from "@/app/salon/ui";
 import { Button } from "@/components/ui/Button";
-import { JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
+import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
 import { addDays, dateChip, weekday } from "@/lib/time";
 import type { SalonPublic } from "@/server/salon/service";
 import { envoyerDemandeAction } from "./actions";
 
 /** FR-B01 / FR-B02 : formulaire de demande, pensé pour un téléphone et une saisie en une minute. */
-export function FormulaireDemande({ salon, aujourdhui, typeInitial }: { salon: SalonPublic; aujourdhui: string; typeInitial: string }) {
+export function FormulaireDemande({
+  salon,
+  aujourdhui,
+  typeInitial,
+  modeleInitial,
+}: {
+  salon: SalonPublic;
+  aujourdhui: string;
+  typeInitial: string;
+  modeleInitial: string;
+}) {
   const router = useRouter();
   const [enCours, start] = useTransition();
-  const [type, setType] = useState(typeInitial);
+  const [modele, setModele] = useState(modeleInitial);
+  const [typeChoisi, setType] = useState(typeInitial);
+  const modeleChoisi = salon.modeles.find((m) => m.id === modele) ?? null;
+  // Le type d'un modèle choisi sur photo prime (il sert à proposer les bonnes coiffeuses).
+  const type = modeleChoisi ? (modeleChoisi.categorieId ?? "") : typeChoisi;
   const [jour, setJour] = useState(aujourdhui);
   const [moment, setMoment] = useState<string>("");
   const [coiffeuse, setCoiffeuse] = useState("");
@@ -45,6 +59,7 @@ export function FormulaireDemande({ salon, aujourdhui, typeInitial }: { salon: S
         clientNom: nom,
         clientTel: tel,
         categorieId: type || null,
+        modeleId: modeleChoisi?.id ?? null,
         jour,
         moment: moment || null,
         coiffeuseSouhaitee: coiffeuseValide || null,
@@ -60,14 +75,42 @@ export function FormulaireDemande({ salon, aujourdhui, typeInitial }: { salon: S
 
   return (
     <div className="mt-6 rounded-2xl border border-trait bg-white p-4">
-      <Champ groupe label="1. Quelle coiffure ?">
-        <Choix
-          libelle="Type de coiffure"
-          options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
-          valeur={type}
-          onChange={setType}
-        />
-      </Champ>
+      {salon.modeles.length > 0 && (
+        <Champ groupe label="1. Choisissez un modèle" aide="Touchez une photo. Vous avez votre propre photo ? Choisissez « Autre coiffure » plus bas.">
+          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {salon.modeles.map((m) => {
+              const on = m.id === modele;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setModele(on ? "" : m.id)}
+                  className={`overflow-hidden rounded-xl border-2 bg-white text-left ${on ? "border-or" : "border-transparent"}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
+                  <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />
+                  <span className="block p-2">
+                    <span className="block text-sm font-semibold">{on ? `✓ ${m.nom}` : m.nom}</span>
+                    {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
+                    {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Champ>
+      )}
+      {!modeleChoisi && (
+        <Champ groupe label={salon.modeles.length ? "Autre coiffure : quel type ?" : "1. Quelle coiffure ?"}>
+          <Choix
+            libelle="Type de coiffure"
+            options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
+            valeur={typeChoisi}
+            onChange={setType}
+          />
+        </Champ>
+      )}
 
       <Champ groupe label="2. Quel jour ?">
         <Choix libelle="Jour" options={jours} valeur={jour} onChange={setJour} />

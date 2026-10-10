@@ -152,3 +152,46 @@ export function nouvelleReference(aleatoire: (n: number) => Uint8Array): string 
   return Array.from(octets, (o) => ALPHABET_REF[o % ALPHABET_REF.length]).join("");
 }
 export const estReference = (v: unknown): v is string => typeof v === "string" && /^[A-Z2-9]{8}$/.test(v);
+
+/* ---------------- Catalogue de modèles (FR-C01) ---------------- */
+
+export const PHOTO_TAILLE_MAX = 800_000;
+
+/** Reconnaît le format réel d'une image à ses premiers octets (on ne se fie pas à l'extension). */
+export function typeImage(o: Uint8Array): "image/jpeg" | "image/png" | "image/webp" | null {
+  if (o.length > 3 && o[0] === 0xff && o[1] === 0xd8 && o[2] === 0xff) return "image/jpeg";
+  if (o.length > 8 && o[0] === 0x89 && o[1] === 0x50 && o[2] === 0x4e && o[3] === 0x47) return "image/png";
+  if (o.length > 12 && String.fromCharCode(...o.slice(0, 4)) === "RIFF" && String.fromCharCode(...o.slice(8, 12)) === "WEBP") return "image/webp";
+  return null;
+}
+
+/** Prix et durées indicatifs, tous facultatifs ; un maximum ne peut pas être inférieur au minimum. */
+export function verifierFourchettes(f: { prixMin: number | null; prixMax: number | null; dureeMin: number | null; dureeMax: number | null }): string | null {
+  for (const p of [f.prixMin, f.prixMax]) {
+    if (p !== null && (!Number.isInteger(p) || p < 0 || p > 1_000_000)) return "Prix invalide (en FCFA).";
+  }
+  for (const d of [f.dureeMin, f.dureeMax]) if (d !== null && verifierDuree(d)) return "Durée invalide (30 min à 12 h, par pas de 15 min).";
+  if (f.prixMin !== null && f.prixMax !== null && f.prixMax < f.prixMin) return "Le prix maximum est inférieur au prix minimum.";
+  if (f.dureeMin !== null && f.dureeMax !== null && f.dureeMax < f.dureeMin) return "La durée maximum est inférieure à la durée minimum.";
+  return null;
+}
+
+const espace = "\u00a0";
+const fcfa = (n: number) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, espace)}${espace}FCFA`;
+const duree = (m: number) => (m % 60 ? `${Math.floor(m / 60)}${espace}h${espace}${String(m % 60).padStart(2, "0")}` : `${m / 60}${espace}h`);
+
+/** « 5 000 – 15 000 FCFA », « à partir de 5 000 FCFA » ou "" si non renseigné. */
+export function fourchettePrix(min: number | null, max: number | null): string {
+  if (min !== null && max !== null) return min === max ? fcfa(min) : `${fcfa(min).replace(`${espace}FCFA`, "")} – ${fcfa(max)}`;
+  if (min !== null) return `à partir de ${fcfa(min)}`;
+  if (max !== null) return `jusqu'à ${fcfa(max)}`;
+  return "";
+}
+
+/** « 2 h – 4 h », « environ 3 h » ou "". */
+export function fourchetteDuree(min: number | null, max: number | null): string {
+  if (min !== null && max !== null) return min === max ? `environ ${duree(min)}` : `${duree(min)} – ${duree(max)}`;
+  if (min !== null) return `au moins ${duree(min)}`;
+  if (max !== null) return `jusqu'à ${duree(max)}`;
+  return "";
+}
