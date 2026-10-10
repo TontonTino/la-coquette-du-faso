@@ -16,19 +16,34 @@
   --color-rouge-pale: #fbeaea;
   --color-vert: #2e6b3f;
   --color-vert-pale: #e8f2ea;
+  /* Fond lumineux des pages clientes : laisse les photos ressortir. */
+  --color-lin: #fffdf9;
+  --color-sable: #f3ede2;
+  /* Indigo du Faso Dan Fani : bande tissée et prestations en cours. */
+  --color-indigo: #24315f;
+  --color-indigo-pale: #e8ebf5;
+  /* Fond de travail de l'espace salon. */
+  --color-atelier: #f2f0eb;
 
   --font-sans: var(--font-poppins), system-ui, sans-serif;
   --font-display: var(--font-cormorant), Georgia, serif;
 
   --shadow-carte: 0 1px 2px rgb(10 10 10 / 0.04), 0 8px 24px -12px rgb(10 10 10 / 0.12);
   --shadow-or: 0 10px 30px -12px rgb(200 164 77 / 0.55);
+  --shadow-photo: 0 18px 40px -22px rgb(10 10 10 / 0.55);
+  --shadow-barre: 0 -10px 30px -18px rgb(10 10 10 / 0.35);
 
   --animate-apparition: apparition 220ms ease-out;
   --animate-montee: montee 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-tampon: tampon 520ms cubic-bezier(0.2, 0.9, 0.25, 1.2);
 
   @keyframes apparition {
     from { opacity: 0; }
     to { opacity: 1; }
+  }
+  @keyframes tampon {
+    0% { opacity: 0; transform: scale(1.25) rotate(-8deg); }
+    100% { opacity: 1; transform: scale(1) rotate(-4deg); }
   }
   @keyframes montee {
     from { opacity: 0; transform: translateY(12px); }
@@ -48,6 +63,42 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-or);
   outline-offset: 2px;
+}
+
+/*
+ * Bande tissée inspirée du Faso Dan Fani (noir, or, indigo, blanc) : la signature visuelle du salon.
+ * Utilisée avec parcimonie : haut des en-têtes, sous l'accueil, tampon de confirmation.
+ */
+.bande-faso {
+  height: 6px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--color-noir) 0 10px,
+    var(--color-or) 10px 13px,
+    #fffdf9 13px 15px,
+    var(--color-indigo) 15px 27px,
+    #fffdf9 27px 29px,
+    var(--color-or) 29px 35px,
+    var(--color-noir) 35px 39px,
+    var(--color-indigo) 39px 43px
+  );
+}
+
+/* Défilement horizontal avec aimantation (galerie, jours). */
+.defile-x {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1rem;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.defile-x::-webkit-scrollbar {
+  display: none;
+}
+.defile-x > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
 }
 
 /* Filet doré décoratif sous les titres. */
@@ -77,4 +128,9 @@ body {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* Chiffres alignés (« 10 », « 16 ») dans le titrage : les chiffres elzéviriens se lisent mal sur un écran de travail. */
+.font-display {
+  font-variant-numeric: lining-nums;
 }

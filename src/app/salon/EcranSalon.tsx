@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { IconWhatsApp } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/Toast";
 import { DUREES_RAPIDES } from "@/lib/salon/regles";
 import type { Categorie, Paiement, Resultat } from "@/lib/salon/types";
@@ -96,54 +97,79 @@ function useAction() {
   return { enCours, lancer };
 }
 
+function Compteur({ n, label, couleur }: { n: number; label: string; couleur: string }) {
+  return (
+    <div className="flex-1 px-3 py-2.5 text-center">
+      <p className={`font-display text-[2rem] leading-none font-bold ${couleur}`}>{n}</p>
+      <p className="mt-1 text-[11px] text-white/60">{label}</p>
+    </div>
+  );
+}
+
+/** Avancement d'une prestation en cours (0 à 1), d'après l'heure de début et la durée prévue. */
+function avancement(heureDebut: string | null, dureeMin: number): number {
+  if (!heureDebut) return 0;
+  const [h, m] = heureDebut.split(":").map(Number);
+  const d = new Date();
+  const ecoule = d.getUTCHours() * 60 + d.getUTCMinutes() - (h * 60 + m); // Ouagadougou = UTC
+  return Math.min(1, Math.max(0, ecoule / Math.max(dureeMin, 1)));
+}
+
+const lienTel = (tel: string) => lienWhatsApp(tel);
+
 function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Demande[]; ouvrir: (e: Ecran) => void }) {
   const { enCours, lancer } = useAction();
   const { attente, enCours: cours, aVenir, compteurs } = journee;
+  const lienAction = "min-h-11 rounded-full px-3 text-sm text-sourdine hover:bg-noir/5 hover:text-encre";
   return (
     <div>
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="noir" size="lg" onClick={() => ouvrir({ type: "rdv" })}>
+      <div role="group" className="texture-noire flex divide-x divide-white/10 overflow-hidden rounded-2xl text-white" aria-label="Coiffeuses aujourd'hui">
+        <Compteur n={compteurs.libres} label={`libre${compteurs.libres > 1 ? "s" : ""}`} couleur="text-or" />
+        <Compteur n={compteurs.occupees} label={`occupée${compteurs.occupees > 1 ? "s" : ""}`} couleur="text-white" />
+        <Compteur n={compteurs.absentes} label={`absente${compteurs.absentes > 1 ? "s" : ""}`} couleur="text-white/50" />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="noir" size="lg" className="px-2 text-[15px]" onClick={() => ouvrir({ type: "rdv" })}>
           + Rendez-vous
         </Button>
-        <Button variant="or" size="lg" onClick={() => ouvrir({ type: "sans" })}>
+        <Button variant="or" size="lg" className="px-2 text-[15px]" onClick={() => ouvrir({ type: "sans" })}>
           + Sans rendez-vous
         </Button>
       </div>
-      <p className="mt-3 text-center text-sm text-sourdine">
-        {compteurs.libres} coiffeuse{compteurs.libres > 1 ? "s" : ""} libre{compteurs.libres > 1 ? "s" : ""} · {compteurs.occupees} occupée
-        {compteurs.occupees > 1 ? "s" : ""} · {compteurs.absentes} absente{compteurs.absentes > 1 ? "s" : ""}
-      </p>
 
       {demandes.length > 0 && (
-        <Section titre="Demandes en ligne à traiter" nombre={demandes.length}>
+        <Section titre="Demandes en ligne à traiter" nombre={demandes.length} ton="or">
           {demandes.map((d) => (
-            <Carte key={d.id} className="border-or">
-              <div className="flex items-start justify-between gap-2">
+            <Carte key={d.id} ton="or" className="bg-gradient-to-br from-or-pale/60 to-white">
+              <div className="flex items-start gap-3">
                 {d.modele && (
                   // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application
-                  <img src={d.modele.photoUrl} alt={d.modele.nom} className="size-16 shrink-0 rounded-lg object-cover" />
+                  <img src={d.modele.photoUrl} alt={d.modele.nom} className="h-24 w-[4.5rem] shrink-0 rounded-lg object-cover shadow-sm" />
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{d.clientNom}</p>
-                  <p className="text-sm">
-                    {capitalize(formatDateMedium(d.jour))} · {libelleMoment(d.moment)}
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold">{d.clientNom}</p>
+                    <Pastille ton="or">En ligne</Pastille>
+                  </div>
+                  <p className="text-sm font-medium">
+                    {capitalize(formatDateMedium(d.jour))}, {libelleMoment(d.moment).toLowerCase()}
                   </p>
                   <p className="text-sm text-sourdine">
-                    {d.modele ? `${d.modele.nom} · ` : ""}
-                    {d.categorie ?? "Type à préciser"}
-                    {d.coiffeuseSouhaitee ? ` · souhaite ${d.coiffeuseSouhaitee.nom}` : ""}
+                    {d.modele ? `${d.modele.nom}, ` : ""}
+                    {d.categorie ?? "type à préciser"}
+                    {d.coiffeuseSouhaitee ? `. Souhaite ${d.coiffeuseSouhaitee.nom}` : ""}
                   </p>
-                  {d.remarque && <p className="text-sm text-sourdine">« {d.remarque} »</p>}
-                  {lienWhatsApp(d.clientTel) && (
-                    <a className="text-sm text-or-fonce underline" href={lienWhatsApp(d.clientTel)!}>
-                      {d.clientTel} · WhatsApp
+                  {d.remarque && <p className="mt-1 text-sm text-sourdine italic">« {d.remarque} »</p>}
+                  {lienTel(d.clientTel) && (
+                    <a className="mt-1 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-vert" href={lienTel(d.clientTel)!}>
+                      <IconWhatsApp width={16} height={16} />
+                      {d.clientTel}
                     </a>
                   )}
                 </div>
-                <Pastille ton="or">En ligne</Pastille>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <button type="button" className="min-h-11 px-2 text-sm text-sourdine underline" onClick={() => ouvrir({ type: "refuser", demande: d })}>
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <button type="button" className={lienAction} onClick={() => ouvrir({ type: "refuser", demande: d })}>
                   Refuser
                 </button>
                 <Button variant="noir" onClick={() => ouvrir({ type: "confirmer", demande: d })}>
@@ -155,53 +181,64 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
         </Section>
       )}
 
-      <Section titre="En attente au salon" nombre={attente.length}>
+      <Section titre="En attente au salon" nombre={attente.length} ton="noir">
         {attente.length === 0 && <Vide>Personne n&apos;attend.</Vide>}
-        {attente.map((c) => (
-          <Carte key={c.id}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="font-semibold">{c.clientNom}</p>
-                <p className="text-sm text-sourdine">{decrire(c)}</p>
+        {attente.map((c) => {
+          const longue = (c.attenteMin ?? 0) >= 30;
+          return (
+            <Carte key={c.id} ton={longue ? "rouge" : "noir"}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold">{c.clientNom}</p>
+                  <p className="text-sm text-sourdine">{decrire(c)}</p>
+                </div>
+                {c.origine === "rendez_vous" ? <Pastille ton="or">RDV {c.heureDebut}</Pastille> : <Pastille ton="gris">Sans RDV</Pastille>}
               </div>
-              {c.origine === "rendez_vous" ? <Pastille ton="or">RDV {c.heureDebut}</Pastille> : <Pastille ton="gris">Sans RDV</Pastille>}
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <p className="text-sm text-sourdine">
-                Arrivée {c.heureArrivee} · attend depuis {c.attenteMin} min
-              </p>
-              <Button variant="noir" onClick={() => ouvrir({ type: "demarrer", carte: c })}>
-                Démarrer
-              </Button>
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="min-h-11 px-2 text-sm text-sourdine underline"
-                disabled={enCours}
-                onClick={() => {
-                  if (window.confirm(`${c.clientNom} est partie sans être coiffée ?`)) lancer(() => annulerAction(c.id), `${c.clientNom} retirée de la file`);
-                }}
-              >
-                Elle est partie
-              </button>
-            </div>
-          </Carte>
-        ))}
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <p className={`text-sm ${longue ? "font-medium text-rouge" : "text-sourdine"}`}>
+                  Arrivée {c.heureArrivee}, attend depuis {c.attenteMin} min
+                </p>
+                <Button variant="noir" onClick={() => ouvrir({ type: "demarrer", carte: c })}>
+                  Démarrer
+                </Button>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className={lienAction}
+                  disabled={enCours}
+                  onClick={() => {
+                    if (window.confirm(`${c.clientNom} est partie sans être coiffée ?`)) lancer(() => annulerAction(c.id), `${c.clientNom} retirée de la file`);
+                  }}
+                >
+                  Elle est partie
+                </button>
+              </div>
+            </Carte>
+          );
+        })}
       </Section>
 
-      <Section titre="En cours" nombre={cours.length}>
+      <Section titre="En cours" nombre={cours.length} ton="indigo">
         {cours.length === 0 && <Vide>Aucune prestation en cours.</Vide>}
         {cours.map((c) => (
-          <Carte key={c.id} className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="font-semibold">{c.clientNom}</p>
-              <p className="text-sm text-sourdine">{qui(c)}</p>
-              <p className="text-sm text-sourdine">Fin estimée {c.heureFin}</p>
+          <Carte key={c.id} ton="indigo">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold">{c.clientNom}</p>
+                <p className="text-sm text-sourdine">{qui(c)}</p>
+              </div>
+              <Button variant="contour" onClick={() => ouvrir({ type: "terminer", carte: c })}>
+                Terminer
+              </Button>
             </div>
-            <Button variant="contour" onClick={() => ouvrir({ type: "terminer", carte: c })}>
-              Terminer
-            </Button>
+            <div className="mt-3 flex items-center gap-3 text-xs text-sourdine">
+              <span>{c.heureDebut}</span>
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-indigo-pale">
+                <div className="h-full rounded-full bg-indigo" style={{ width: `${Math.round(avancement(c.heureDebut, c.dureeMin) * 100)}%` }} suppressHydrationWarning />
+              </div>
+              <span>fin {c.heureFin}</span>
+            </div>
           </Carte>
         ))}
       </Section>
@@ -209,35 +246,36 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
       <Section titre="Rendez-vous à venir" nombre={aVenir.length}>
         {aVenir.length === 0 && <Vide>Plus de rendez-vous aujourd&apos;hui.</Vide>}
         {aVenir.map((c) => (
-          <Carte key={c.id}>
+          <Carte key={c.id} ton={c.aReattribuer.length > 0 || c.enRetard ? "rouge" : "neutre"}>
             <div className="flex items-start gap-3">
-              <p className="w-14 shrink-0 text-lg font-bold">{c.heureDebut}</p>
+              <p className="w-16 shrink-0 font-display text-[1.6rem] leading-none font-bold">{c.heureDebut}</p>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold">
                   {c.clientNom} {c.enRetard && <Pastille ton="rouge">En retard</Pastille>}
                 </p>
                 <p className="text-sm text-sourdine">
-                  {formatDuration(c.dureeMin)} · {qui(c)}
+                  {formatDuration(c.dureeMin)}, {qui(c)}
                 </p>
                 {(c.categorie || c.modele) && <p className="text-sm text-sourdine">{decrire(c)}</p>}
                 {c.aReattribuer.length > 0 && (
                   <p className="mt-1 text-sm font-medium text-rouge">{c.aReattribuer.join(" + ")} absente : à réattribuer</p>
                 )}
-                {c.clientTel && (
-                  <a className="text-sm text-or-fonce underline" href={`https://wa.me/226${c.clientTel.replace(/\D/g, "").slice(-8)}`}>
-                    {c.clientTel} · WhatsApp
+                {c.clientTel && lienTel(c.clientTel) && (
+                  <a className="mt-1 inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-vert" href={lienTel(c.clientTel)!}>
+                    <IconWhatsApp width={16} height={16} />
+                    {c.clientTel}
                   </a>
                 )}
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-1">
-              <div className="flex">
-                <button type="button" className="min-h-11 px-2 text-sm text-sourdine underline" onClick={() => ouvrir({ type: "rdv", carte: c })}>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-1 border-t border-trait/70 pt-2">
+              <div className="-ml-3 flex">
+                <button type="button" className={lienAction} onClick={() => ouvrir({ type: "rdv", carte: c })}>
                   Modifier
                 </button>
                 <button
                   type="button"
-                  className="min-h-11 px-2 text-sm text-sourdine underline"
+                  className={lienAction}
                   disabled={enCours}
                   onClick={() => {
                     if (window.confirm(`Marquer ${c.clientNom} absente (elle n'est pas venue) ?`))
@@ -248,7 +286,7 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
                 </button>
                 <button
                   type="button"
-                  className="min-h-11 px-2 text-sm text-sourdine underline"
+                  className={lienAction}
                   disabled={enCours}
                   onClick={() => {
                     if (window.confirm(`Annuler le rendez-vous de ${c.clientNom} ?`)) lancer(() => annulerAction(c.id), "Rendez-vous annulé : créneau libéré");
@@ -257,7 +295,7 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
                   Annuler
                 </button>
               </div>
-              <Button variant="contour" disabled={enCours} onClick={() => lancer(() => arriveeAction(c.id), `${c.clientNom} ajoutée à la file d'attente`)}>
+              <Button variant="contour" className="ml-auto" disabled={enCours} onClick={() => lancer(() => arriveeAction(c.id), `${c.clientNom} ajoutée à la file d'attente`)}>
                 Elle est arrivée
               </Button>
             </div>
@@ -272,12 +310,12 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
 
 function EnTete({ titre, sousTitre, onRetour }: { titre: string; sousTitre?: string; onRetour: () => void }) {
   return (
-    <div className="mb-4">
-      <button type="button" onClick={onRetour} className="min-h-11 text-sm text-sourdine underline">
+    <div className="mb-5">
+      <button type="button" onClick={onRetour} className="-ml-2 min-h-11 rounded-full px-3 text-sm font-medium text-sourdine hover:bg-noir/5 hover:text-encre">
         ‹ Retour
       </button>
-      <h1 className="font-display text-3xl font-bold">{titre}</h1>
-      {sousTitre && <p className="text-sm text-sourdine">{sousTitre}</p>}
+      <h1 className="mt-1 font-display text-[2.2rem] leading-none font-bold">{titre}</h1>
+      {sousTitre && <p className="mt-2 text-sm text-sourdine">{sousTitre}</p>}
     </div>
   );
 }
@@ -334,7 +372,7 @@ function ChoixCoiffeuses({
           type="button"
           aria-pressed={choisies.length === 0}
           onClick={() => setChoisies([])}
-          className={`min-h-11 rounded-full border px-4 text-sm ${choisies.length === 0 ? "border-noir bg-noir text-white" : "border-trait bg-white"}`}
+          className={`min-h-11 rounded-full border px-4 text-sm transition-colors ${choisies.length === 0 ? "border-noir bg-noir font-medium text-white" : "border-trait bg-white hover:border-or"}`}
         >
           Première disponible
         </button>
@@ -347,7 +385,7 @@ function ChoixCoiffeuses({
             type="button"
             aria-pressed={on}
             onClick={() => setChoisies(basculer(choisies, c.id, toast))}
-            className={`min-h-11 rounded-full border px-4 text-sm ${on ? "border-noir bg-noir text-white" : "border-trait bg-white"}`}
+            className={`min-h-11 rounded-full border px-4 text-sm transition-colors ${on ? "border-noir bg-noir font-medium text-white" : "border-trait bg-white hover:border-or"}`}
           >
             {c.nom}
           </button>
@@ -648,7 +686,7 @@ function FormConfirmerDemande({
       {demande.modele && (
         <div className="mb-4 flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
-          <img src={demande.modele.photoUrl} alt="" className="size-20 rounded-xl object-cover" />
+          <img src={demande.modele.photoUrl} alt="" className="h-24 w-[4.5rem] rounded-lg object-cover shadow-sm" />
           <p className="text-sm">
             Modèle choisi : <span className="font-semibold">{demande.modele.nom}</span>
           </p>
@@ -736,9 +774,20 @@ function Prevenir({ titre, texte, lien, onFini }: { titre: string; texte: string
   return (
     <div>
       <EnTete titre={titre} sousTitre="Le message est prêt : il part de votre WhatsApp quand vous appuyez sur Envoyer." onRetour={onFini} />
-      <pre className="mb-4 rounded-xl border border-trait bg-white p-3 font-sans text-sm whitespace-pre-wrap">{texte}</pre>
+      {/* Aperçu en bulle, comme la cliente le verra dans WhatsApp. */}
+      <div className="mb-5 rounded-2xl bg-[#efe7dc] p-3">
+        <pre className="ml-auto max-w-[92%] rounded-2xl rounded-tr-sm bg-[#d9fdd3] px-3.5 py-2.5 font-sans text-sm leading-relaxed whitespace-pre-wrap text-encre shadow-sm [overflow-wrap:anywhere]">
+          {texte}
+        </pre>
+      </div>
       {lien && (
-        <a href={lien} target="_blank" rel="noopener noreferrer" className="mb-3 flex min-h-13 items-center justify-center rounded-full bg-[#1f7a4d] px-6 font-medium text-white">
+        <a
+          href={lien}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-3 flex min-h-13 items-center justify-center gap-2 rounded-full bg-[#1f7a4d] px-6 font-medium text-white shadow-[0_10px_30px_-12px_rgb(31_122_77/0.6)] hover:bg-[#196842]"
+        >
+          <IconWhatsApp width={20} height={20} />
           Envoyer sur WhatsApp
         </a>
       )}

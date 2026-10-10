@@ -4,13 +4,13 @@ import { useTransition } from "react";
 import { useToast } from "@/components/ui/Toast";
 import type { Journee, LigneCoiffeuse } from "@/lib/salon/vue";
 import { basculerAbsenceAction } from "../actions";
-import { Carte, Section, Vide } from "../ui";
+import { Carte, Section, type Ton, Vide } from "../ui";
 
-const ETAT: Record<LigneCoiffeuse["etat"], { texte: string; classe: string; avatar: string }> = {
-  libre: { texte: "Libre", classe: "text-vert", avatar: "bg-or-pale text-or-fonce" },
-  occupee: { texte: "Occupée", classe: "text-encre", avatar: "bg-noir text-or" },
-  absente: { texte: "Absente aujourd'hui", classe: "text-sourdine", avatar: "bg-gris text-sourdine" },
-  conge: { texte: "Jour de congé", classe: "text-sourdine", avatar: "bg-gris text-sourdine" },
+const ETAT: Record<LigneCoiffeuse["etat"], { texte: string; classe: string; avatar: string; ton: Ton }> = {
+  libre: { texte: "Libre", classe: "text-vert", avatar: "bg-or text-noir", ton: "vert" },
+  occupee: { texte: "Occupée", classe: "text-indigo", avatar: "bg-noir text-or", ton: "indigo" },
+  absente: { texte: "Absente aujourd'hui", classe: "text-rouge", avatar: "bg-atelier text-sourdine", ton: "rouge" },
+  conge: { texte: "Jour de congé", classe: "text-sourdine", avatar: "bg-atelier text-sourdine", ton: "neutre" },
 };
 
 const initiales = (nom: string) =>
@@ -37,15 +37,15 @@ export function ListeCoiffeuses({ lignes, compteurs, jour }: { lignes: LigneCoif
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="texture-noire flex divide-x divide-white/10 overflow-hidden rounded-2xl text-center text-white">
         {[
-          { n: compteurs.libres, l: "libres", c: "text-vert" },
-          { n: compteurs.occupees, l: "occupées", c: "text-encre" },
-          { n: compteurs.absentes, l: "absentes", c: "text-sourdine" },
+          { n: compteurs.libres, l: "libres", c: "text-or" },
+          { n: compteurs.occupees, l: "occupées", c: "text-white" },
+          { n: compteurs.absentes, l: "absentes", c: "text-white/50" },
         ].map((x) => (
-          <div key={x.l} className="rounded-xl border border-trait bg-white p-2">
-            <p className={`text-xl font-bold ${x.c}`}>{x.n}</p>
-            <p className="text-xs text-sourdine">{x.l}</p>
+          <div key={x.l} className="flex-1 px-3 py-2.5">
+            <p className={`font-display text-[2rem] leading-none font-bold ${x.c}`}>{x.n}</p>
+            <p className="mt-1 text-[11px] text-white/60">{x.l}</p>
           </div>
         ))}
       </div>
@@ -54,8 +54,8 @@ export function ListeCoiffeuses({ lignes, compteurs, jour }: { lignes: LigneCoif
         {lignes.map((l) => {
           const e = ETAT[l.etat];
           return (
-            <Carte key={l.id} className="flex items-center gap-3 py-2.5">
-              <span className={`flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${e.avatar}`} aria-hidden>
+            <Carte key={l.id} ton={e.ton} className="flex items-center gap-3 py-2.5">
+              <span className={`flex size-10 shrink-0 items-center justify-center rounded-full font-display text-lg font-bold ${e.avatar}`} aria-hidden>
                 {initiales(l.nom)}
               </span>
               <div className="min-w-0 flex-1">
@@ -64,13 +64,13 @@ export function ListeCoiffeuses({ lignes, compteurs, jour }: { lignes: LigneCoif
                 {(l.avec || l.prochain) && (
                   <p className="text-xs text-sourdine">
                     {l.avec && `Avec ${l.avec}`}
-                    {l.avec && l.prochain && " · "}
+                    {l.avec && l.prochain && ". "}
                     {l.prochain && `Prochain RDV ${l.prochain.heure} (${l.prochain.client})`}
                   </p>
                 )}
               </div>
               {l.etat !== "conge" && (
-                <button type="button" disabled={enCours} onClick={() => basculer(l)} className="min-h-11 shrink-0 px-1 text-sm text-sourdine underline">
+                <button type="button" disabled={enCours} onClick={() => basculer(l)} className="min-h-11 shrink-0 rounded-full border border-trait px-3 text-sm text-sourdine hover:border-or hover:text-encre">
                   {l.etat === "absente" ? "Annuler l'absence" : "Absente ?"}
                 </button>
               )}

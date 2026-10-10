@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { HabillagePublic } from "@/components/public/Habillage";
 import { buttonClasses } from "@/components/ui/Button";
+import { IconCheck, IconWhatsApp } from "@/components/ui/icons";
 import { libelleMoment } from "@/lib/salon/regles";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
 import { capitalize, formatDateLong } from "@/lib/time";
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: "Suivi de ma demande", robots: { inde
 export default function PageSuivi({ params }: PageProps<"/demande/[ref]">) {
   return (
     <HabillagePublic>
-      <Suspense fallback={<div className="h-64 animate-pulse rounded-2xl bg-white" />}>
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-[1.75rem] bg-sable" />}>
         <Suivi params={params} />
       </Suspense>
     </HabillagePublic>
@@ -41,31 +42,63 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const d = await suiviDemande(ref.toUpperCase());
   if (!d) notFound();
   const e = ETATS[d.statut] ?? ETATS.demandee;
-  const couleur = e.ton === "ok" ? "bg-vert-pale text-vert" : e.ton === "ko" ? "bg-rouge-pale text-rouge" : "bg-or-pale text-or-fonce";
   const photo = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, voici la photo du modèle pour ma demande ${d.reference} (${d.prenom}).`) : null;
+  const etape = d.statut === "demandee" ? 0 : ["prevue"].includes(d.statut) ? 1 : ["en_attente", "en_cours", "terminee"].includes(d.statut) ? 2 : -1;
+  const fond = e.ton === "ok" ? "bg-noir text-white" : e.ton === "ko" ? "bg-rouge-pale text-encre" : "bg-white text-encre shadow-carte";
 
   return (
     <div>
       {d.statut === "demandee" && <Actualiser />}
       <p className="text-sm text-sourdine">Bonjour {d.prenom},</p>
-      <div className={`mt-2 rounded-2xl p-5 ${couleur}`}>
-        <h1 className="font-display text-3xl font-bold">{e.titre}</h1>
-        {(d.statut === "refusee" ? d.motifRefus : e.texte) && <p className="mt-1">{d.statut === "refusee" ? `Motif : ${d.motifRefus}.` : e.texte}</p>}
+      <div className={`relative mt-3 overflow-hidden rounded-[1.75rem] p-6 ${fond}`}>
+        {e.ton === "ok" && <div className="bande-faso absolute inset-x-0 top-0" aria-hidden />}
+        {d.statut === "prevue" && (
+          <span
+            className="absolute top-6 right-5 flex size-16 animate-tampon items-center justify-center rounded-full border-2 border-or text-or"
+            style={{ transform: "rotate(-4deg)" }}
+            aria-hidden
+          >
+            <IconCheck width={30} height={30} strokeWidth={2.2} />
+          </span>
+        )}
+        <h1 className={`font-display text-[2.4rem] leading-[0.95] font-bold ${d.statut === "prevue" ? "pr-20" : ""} ${e.ton === "ok" ? "text-or" : ""}`}>{e.titre}</h1>
+        {(d.statut === "refusee" ? d.motifRefus : e.texte) && (
+          <p className={`mt-3 ${e.ton === "ok" ? "text-white/80" : e.ton === "ko" ? "text-rouge" : "text-sourdine"}`}>
+            {d.statut === "refusee" ? `Motif : ${d.motifRefus}.` : e.texte}
+          </p>
+        )}
+        {etape >= 0 && (
+          <ol className="mt-6 grid grid-cols-3 gap-2" aria-label="Étapes de votre demande">
+            {["Envoyée", "Confirmée", "Au salon"].map((t, i) => {
+              const fait = i <= etape;
+              const clair = e.ton === "ok";
+              return (
+                <li key={t} className="flex flex-col gap-1.5">
+                  <span className={`h-1 rounded-full ${fait ? "bg-or" : clair ? "bg-white/15" : "bg-trait"}`} aria-hidden />
+                  <span className={`text-xs ${fait ? (clair ? "text-white" : "font-medium text-encre") : clair ? "text-white/45" : "text-sourdine"}`}>
+                    {t}
+                    {i === etape ? <span className="sr-only"> (étape actuelle)</span> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
 
       {d.modele && (
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-trait bg-white p-3">
+        <div className="mt-4 flex items-center gap-4 rounded-2xl bg-white p-3 shadow-carte">
           {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
-          <img src={d.modele.photoUrl} alt="" className="size-16 rounded-xl object-cover" />
+          <img src={d.modele.photoUrl} alt="" className="h-20 w-16 rounded-xl object-cover" />
           <div>
             <p className="text-xs text-sourdine">Modèle choisi</p>
-            <p className="font-semibold">{d.modele.nom}</p>
+            <p className="font-display text-xl leading-tight font-bold">{d.modele.nom}</p>
           </div>
         </div>
       )}
-      <dl className="mt-4 divide-y divide-trait rounded-2xl border border-trait bg-white">
+      <dl className="mt-4 divide-y divide-trait rounded-2xl bg-white shadow-carte">
         <Ligne terme="Jour" valeur={capitalize(formatDateLong(d.jour))} />
-        <Ligne terme="Heure" valeur={d.heure ? d.heure.replace(":", " h ") : `${libelleMoment(d.moment)} — heure exacte à confirmer`} />
+        <Ligne terme="Heure" valeur={d.heure ? d.heure.replace(":", " h ") : `${libelleMoment(d.moment)}, heure exacte à confirmer`} fort={!!d.heure} />
         {d.categorie && <Ligne terme="Coiffure" valeur={d.categorie} />}
         {d.coiffeuses.length > 0 && <Ligne terme="Avec" valeur={d.coiffeuses.join(" et ")} />}
         <Ligne terme="Référence" valeur={d.reference} />
@@ -73,6 +106,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
 
       {d.statut === "demandee" && photo && (
         <a href={photo} className={buttonClasses("or", "lg", "mt-5 w-full")}>
+          <IconWhatsApp width={20} height={20} />
           Envoyer la photo du modèle sur WhatsApp
         </a>
       )}
@@ -86,11 +120,11 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   );
 }
 
-function Ligne({ terme, valeur }: { terme: string; valeur: string }) {
+function Ligne({ terme, valeur, fort = false }: { terme: string; valeur: string; fort?: boolean }) {
   return (
-    <div className="flex justify-between gap-4 px-4 py-3 text-sm">
+    <div className="flex items-baseline justify-between gap-4 px-4 py-3.5 text-sm">
       <dt className="text-sourdine">{terme}</dt>
-      <dd className="text-right font-medium">{valeur}</dd>
+      <dd className={`text-right ${fort ? "font-display text-2xl font-bold" : "font-medium"}`}>{valeur}</dd>
     </div>
   );
 }

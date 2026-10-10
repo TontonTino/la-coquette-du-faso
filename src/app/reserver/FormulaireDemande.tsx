@@ -1,13 +1,39 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { Champ, Choix, classeInput } from "@/app/salon/ui";
 import { Button } from "@/components/ui/Button";
+import { IconCheck, IconInfini, IconSun, IconSunrise, IconSunset } from "@/components/ui/icons";
 import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
-import { addDays, dateChip, weekday } from "@/lib/time";
+import { addDays, capitalize, dateChip, formatDateMedium, weekday } from "@/lib/time";
 import type { SalonPublic } from "@/server/salon/service";
 import { envoyerDemandeAction } from "./actions";
+
+const ICONES_MOMENT: Record<string, ReactNode> = {
+  matin: <IconSunrise />,
+  apres_midi: <IconSun />,
+  fin_journee: <IconSunset />,
+  "": <IconInfini />,
+};
+
+/** Titre d'une étape du formulaire : un numéro, car c'est un parcours dans l'ordre. */
+function Etape({ n, titre, aide, children }: { n: number; titre: string; aide?: string; children: ReactNode }) {
+  return (
+    <section className="border-t border-trait py-6 first:border-t-0 first:pt-2">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-noir font-display text-lg font-bold text-or" aria-hidden>
+          {n}
+        </span>
+        <div className="pt-0.5">
+          <h2 className="font-semibold">{titre}</h2>
+          {aide && <p className="mt-0.5 text-sm text-sourdine">{aide}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 /** FR-B01 / FR-B02 : formulaire de demande, pensé pour un téléphone et une saisie en une minute. */
 export function FormulaireDemande({
@@ -37,16 +63,24 @@ export function FormulaireDemande({
   const [piege, setPiege] = useState("");
   const [erreurs, setErreurs] = useState<{ nom?: string; tel?: string; global?: string }>({});
 
-  const jours = Array.from({ length: 7 }, (_, i) => {
+  const jours = Array.from({ length: 14 }, (_, i) => {
     const j = addDays(aujourdhui, i);
-    const c = dateChip(j);
-    return { valeur: j, label: i === 0 ? "Aujourd'hui" : i === 1 ? "Demain" : `${c.weekday} ${c.day}` };
+    return { valeur: j, ...dateChip(j), label: i === 0 ? "Aujourd'hui" : i === 1 ? "Demain" : null };
   });
+  const jourHorsListe = !jours.some((j) => j.valeur === jour);
   // Coiffeuses qui savent faire ce type et ne sont pas en congé ce jour-là (le serveur revérifie).
   const coiffeusesPossibles = salon.coiffeuses.filter(
     (c) => (!type || c.categorieIds.includes(type)) && !c.joursConge.includes(weekday(jour)),
   );
   const coiffeuseValide = coiffeusesPossibles.some((c) => c.id === coiffeuse) ? coiffeuse : "";
+  const nomType = salon.categories.find((c) => c.id === type)?.nom ?? null;
+  const resume = [
+    modeleChoisi?.nom ?? nomType ?? "Coiffure à préciser",
+    capitalize(formatDateMedium(jour)),
+    MOMENTS.find((m) => m.valeur === moment)?.label ?? null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const envoyer = () => {
     const e: typeof erreurs = {};
@@ -72,88 +106,140 @@ export function FormulaireDemande({
   };
 
   const dateMax = addDays(aujourdhui, JOURS_RESERVABLES);
+  let n = 0;
 
   return (
-    <div className="mt-6 rounded-2xl border border-trait bg-white p-4">
+    <div className="mt-4">
       {salon.modeles.length > 0 && (
-        <Champ groupe label="1. Choisissez un modèle" aide="Touchez une photo. Vous avez votre propre photo ? Choisissez « Autre coiffure » plus bas.">
-          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <Etape n={++n} titre="Choisissez un modèle" aide="Touchez une photo. Vous avez votre propre photo ? Choisissez le type juste en dessous.">
+          <div role="group" aria-label="Modèles" className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
             {salon.modeles.map((m) => {
               const on = m.id === modele;
               return (
-                <button
-                  key={m.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setModele(on ? "" : m.id)}
-                  className={`overflow-hidden rounded-xl border-2 bg-white text-left ${on ? "border-or" : "border-transparent"}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
-                  <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />
-                  <span className="block p-2">
-                    <span className="block text-sm font-semibold">{on ? `✓ ${m.nom}` : m.nom}</span>
-                    {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
-                    {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
+                <button key={m.id} type="button" aria-pressed={on} onClick={() => setModele(on ? "" : m.id)} className="group text-left">
+                  <span
+                    className={`relative block overflow-hidden rounded-[1.25rem] ring-offset-2 ring-offset-lin transition-shadow ${on ? "ring-[3px] ring-or" : "ring-0"}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
+                    <img src={m.photoUrl} alt={m.nom} loading="lazy" className="aspect-[4/5] w-full object-cover" />
+                    {on && (
+                      <span className="absolute top-2 right-2 flex size-8 animate-apparition items-center justify-center rounded-full bg-or text-noir shadow-md" aria-hidden>
+                        <IconCheck width={18} height={18} strokeWidth={2.4} />
+                      </span>
+                    )}
                   </span>
+                  <span className={`mt-2 block text-sm leading-snug font-semibold ${on ? "text-or-fonce" : ""}`}>{m.nom}</span>
+                  {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
+                  {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
                 </button>
               );
             })}
           </div>
-        </Champ>
+          {!modeleChoisi && (
+            <div className="mt-6 rounded-2xl bg-sable/70 p-4">
+              <p className="mb-3 text-sm font-medium">Autre coiffure : quel type ?</p>
+              <Choix
+                libelle="Type de coiffure"
+                options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
+                valeur={typeChoisi}
+                onChange={setType}
+              />
+            </div>
+          )}
+        </Etape>
       )}
-      {!modeleChoisi && (
-        <Champ groupe label={salon.modeles.length ? "Autre coiffure : quel type ?" : "1. Quelle coiffure ?"}>
+      {salon.modeles.length === 0 && (
+        <Etape n={++n} titre="Quelle coiffure ?">
           <Choix
             libelle="Type de coiffure"
             options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
             valeur={typeChoisi}
             onChange={setType}
           />
-        </Champ>
+        </Etape>
       )}
 
-      <Champ groupe label="2. Quel jour ?">
-        <Choix libelle="Jour" options={jours} valeur={jour} onChange={setJour} />
-        <label className="mt-1 flex items-center gap-2 text-sm text-sourdine">
-          Autre date :
+      <Etape n={++n} titre="Quel jour ?">
+        <div role="group" aria-label="Jour" className="defile-x -mx-4 gap-2 px-4 pb-1">
+          {jours.map((j) => {
+            const on = j.valeur === jour;
+            const nomJour = j.label ?? `${j.weekday} ${j.day}`;
+            return (
+              <button
+                key={j.valeur}
+                type="button"
+                aria-pressed={on}
+                aria-label={nomJour}
+                onClick={() => setJour(j.valeur)}
+                className={`flex w-[4.5rem] flex-col items-center rounded-2xl border py-2.5 transition-colors ${
+                  on ? "border-noir bg-noir text-white" : "border-trait bg-white text-encre hover:border-or"
+                }`}
+              >
+                <span className={`text-xs capitalize ${on ? "text-or" : "text-sourdine"}`}>{j.weekday}</span>
+                <span className="font-display text-[1.7rem] leading-tight font-bold">{j.day}</span>
+                <span className={`text-[11px] ${on ? "text-white/70" : "text-sourdine"}`}>{j.label ?? j.month}</span>
+              </button>
+            );
+          })}
+        </div>
+        <label className="mt-3 flex flex-wrap items-center gap-2 text-sm text-sourdine">
+          Plus tard ?
           <input
             type="date"
             min={aujourdhui}
             max={dateMax}
             value={jour}
             onChange={(e) => e.target.value && setJour(e.target.value)}
-            className="h-11 rounded-full border border-trait bg-white px-3 text-sm text-encre"
+            className={`h-11 rounded-full border bg-white px-3 text-sm text-encre ${jourHorsListe ? "border-noir" : "border-trait"}`}
           />
         </label>
-      </Champ>
+      </Etape>
 
-      <Champ groupe label="3. À quel moment ?">
-        <Choix
-          libelle="Moment de la journée"
-          options={[...MOMENTS.map((m) => ({ valeur: m.valeur as string, label: `${m.label} · ${m.plage}` })), { valeur: "", label: "Peu importe" }]}
-          valeur={moment}
-          onChange={setMoment}
-        />
-      </Champ>
+      <Etape n={++n} titre="À quel moment ?" aide="L'heure exacte vous sera confirmée par le salon.">
+        <div role="group" aria-label="Moment de la journée" className="grid grid-cols-2 gap-2">
+          {[...MOMENTS.map((m) => ({ valeur: m.valeur as string, label: m.label, plage: m.plage })), { valeur: "", label: "Peu importe", plage: "le plus tôt possible" }].map((m) => {
+            const on = m.valeur === moment;
+            return (
+              <button
+                key={m.valeur}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setMoment(m.valeur)}
+                className={`flex min-h-[4.75rem] flex-col items-start justify-center gap-0.5 rounded-2xl border px-4 py-3 text-left transition-colors ${
+                  on ? "border-noir bg-noir text-white" : "border-trait bg-white hover:border-or"
+                }`}
+              >
+                <span className={on ? "text-or" : "text-or-fonce"} aria-hidden>
+                  {ICONES_MOMENT[m.valeur]}
+                </span>
+                <span className="text-sm font-semibold">{m.label}</span>
+                <span className={`text-xs ${on ? "text-white/70" : "text-sourdine"}`}>{m.plage}</span>
+              </button>
+            );
+          })}
+        </div>
+      </Etape>
 
-      <Champ groupe label="4. Une coiffeuse en particulier ?" aide="Seules celles qui font ce type de coiffure et travaillent ce jour-là sont proposées.">
+      <Etape n={++n} titre="Une coiffeuse en particulier ?" aide="Seules celles qui font cette coiffure et travaillent ce jour-là sont proposées.">
         <Choix
           libelle="Coiffeuse souhaitée"
           options={[{ valeur: "", label: "Peu importe" }, ...coiffeusesPossibles.map((c) => ({ valeur: c.id, label: c.nom }))]}
           valeur={coiffeuseValide}
           onChange={setCoiffeuse}
         />
-      </Champ>
+      </Etape>
 
-      <Champ label="5. Votre nom" erreur={erreurs.nom}>
-        <input className={classeInput} value={nom} onChange={(e) => (setNom(e.target.value), setErreurs((x) => ({ ...x, nom: undefined })))} autoComplete="name" placeholder="Ex. : Aminata O." />
-      </Champ>
-      <Champ label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Le salon vous confirmera l'heure sur ce numéro.">
-        <input className={classeInput} value={tel} onChange={(e) => (setTel(e.target.value), setErreurs((x) => ({ ...x, tel: undefined })))} type="tel" inputMode="tel" autoComplete="tel" placeholder="70 12 34 56" />
-      </Champ>
-      <Champ label="Précisions (facultatif)" aide="Longueur, couleur… Vous pourrez envoyer la photo du modèle sur WhatsApp juste après.">
-        <input className={classeInput} value={remarque} onChange={(e) => setRemarque(e.target.value)} maxLength={200} />
-      </Champ>
+      <Etape n={++n} titre="Vos coordonnées">
+        <Champ label="Votre nom" erreur={erreurs.nom}>
+          <input className={classeInput} value={nom} onChange={(e) => (setNom(e.target.value), setErreurs((x) => ({ ...x, nom: undefined })))} autoComplete="name" placeholder="Ex. : Aminata O." />
+        </Champ>
+        <Champ label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Le salon vous confirmera l'heure sur ce numéro.">
+          <input className={classeInput} value={tel} onChange={(e) => (setTel(e.target.value), setErreurs((x) => ({ ...x, tel: undefined })))} type="tel" inputMode="tel" autoComplete="tel" placeholder="70 12 34 56" />
+        </Champ>
+        <Champ label="Précisions (facultatif)" aide="Longueur, couleur… Vous pourrez envoyer la photo du modèle sur WhatsApp juste après.">
+          <input className={classeInput} value={remarque} onChange={(e) => setRemarque(e.target.value)} maxLength={200} />
+        </Champ>
+      </Etape>
 
       {/* Piège à robots : invisible pour les personnes, ignoré par les lecteurs d'écran. */}
       <div aria-hidden="true" className="absolute -left-[9999px] h-0 overflow-hidden">
@@ -163,15 +249,19 @@ export function FormulaireDemande({
         </label>
       </div>
 
-      {erreurs.global && (
-        <p role="alert" className="mb-4 rounded-xl bg-rouge-pale px-3 py-2 text-sm text-rouge">
-          {erreurs.global}
-        </p>
-      )}
-      <Button variant="or" size="lg" className="w-full" loading={enCours} onClick={envoyer}>
-        Envoyer ma demande
-      </Button>
-      <p className="mt-3 text-center text-xs text-sourdine">
+      {/* Barre d'envoi toujours visible : la cliente voit ce qu'elle demande et peut envoyer à tout moment. */}
+      <div className="sticky bottom-0 z-20 -mx-4 border-t border-trait bg-lin/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-barre backdrop-blur">
+        {erreurs.global && (
+          <p role="alert" className="mb-3 rounded-xl bg-rouge-pale px-3 py-2 text-sm text-rouge">
+            {erreurs.global}
+          </p>
+        )}
+        <p className="mb-2 truncate text-center text-xs text-sourdine">{resume}</p>
+        <Button variant="or" size="lg" className="w-full" loading={enCours} onClick={envoyer}>
+          Envoyer ma demande
+        </Button>
+      </div>
+      <p className="mt-4 text-center text-xs text-sourdine">
         Ce n&apos;est pas encore une confirmation : le salon vous répond sur WhatsApp avec l&apos;heure exacte.
       </p>
     </div>

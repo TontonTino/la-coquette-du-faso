@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { Logo } from "@/components/layout/Logo";
+import { IconSortie } from "@/components/ui/icons";
 import { utilisatriceCourante } from "@/server/auth";
 import { deconnexionAction } from "./actions";
 import { NavSalon } from "./NavSalon";
@@ -8,18 +10,27 @@ export const metadata: Metadata = { title: { default: "Salon", template: "%s · 
 
 export default function SalonLayout({ children }: LayoutProps<"/salon">) {
   return (
-    <div className="flex min-h-dvh flex-col bg-creme text-encre">
+    <div className="flex min-h-dvh flex-col bg-atelier text-encre">
       <header className="sticky top-0 z-30 bg-noir text-white">
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="font-display text-xl leading-tight font-bold text-or">La Coquette du Faso</p>
-            <Suspense fallback={<p className="text-xs text-white/60">Espace salon</p>}>
-              <QuiEstConnectee />
-            </Suspense>
+        <div className="bande-faso" aria-hidden />
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Logo size={34} />
+            <div className="min-w-0">
+              <p className="font-display text-lg leading-tight font-bold text-or">La Coquette du Faso</p>
+              <Suspense fallback={<p className="text-xs text-white/60">Espace salon</p>}>
+                <QuiEstConnectee />
+              </Suspense>
+            </div>
           </div>
           <form action={deconnexionAction}>
-            <button type="submit" className="min-h-11 rounded-full px-3 text-sm text-white/80 underline-offset-4 hover:underline">
-              Se déconnecter
+            <button
+              type="submit"
+              aria-label="Se déconnecter"
+              title="Se déconnecter"
+              className="flex size-11 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+            >
+              <IconSortie />
             </button>
           </form>
         </div>
@@ -36,7 +47,7 @@ async function QuiEstConnectee() {
   const u = await utilisatriceCourante();
   const role = u?.role === "gerante" ? "Gérante" : "Secrétaire";
   const libelle = !u ? "Espace salon" : u.nom === role ? `Connectée : ${role.toLowerCase()}` : `${u.nom} · ${role.toLowerCase()}`;
-  return <p className="text-xs text-white/70">{libelle}</p>;
+  return <p className="truncate text-xs text-white/60">{libelle}</p>;
 }
 
 async function NavSelonRole() {

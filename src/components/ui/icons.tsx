@@ -88,3 +88,52 @@ export const IconUser = (p: SVGProps<SVGSVGElement>) => (
     <path d="M4 20.5c1-4 4.2-6 8-6s7 2 8 6" />
   </Icon>
 );
+export const IconCheck = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="m5 12.5 4.5 4.5L19 7.5" />
+  </Icon>
+);
+export const IconSunrise = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 18h16M7 18a5 5 0 0 1 10 0M12 4v4M5.2 9.2l1.6 1.6M18.8 9.2l-1.6 1.6M2.5 14h2M19.5 14h2" />
+  </Icon>
+);
+export const IconSun = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" />
+  </Icon>
+);
+export const IconSunset = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 18h16M7 18a5 5 0 0 1 10 0M12 8V4M9.5 6.5 12 9l2.5-2.5M2.5 14h2M19.5 14h2" />
+  </Icon>
+);
+export const IconInfini = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M8 8.5c-2 0-3.5 1.6-3.5 3.5S6 15.5 8 15.5c3.5 0 4.5-7 8-7 2 0 3.5 1.6 3.5 3.5S18 15.5 16 15.5c-3.5 0-4.5-7-8-7Z" />
+  </Icon>
+);
+export const IconWhatsApp = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 20l1.2-3.6A8 8 0 1 1 8 19.2Z" />
+    <path d="M9.2 8.6c.2-.5.5-.6.8-.6h.5c.2 0 .4.1.5.4l.6 1.5c.1.2 0 .5-.1.6l-.5.6c.6 1.1 1.4 1.9 2.5 2.5l.6-.5c.2-.1.4-.2.6-.1l1.5.6c.3.1.4.3.4.5v.5c0 .3-.1.6-.6.8-.7.4-1.7.4-2.9-.2a8.4 8.4 0 0 1-3.7-3.7c-.6-1.2-.6-2.2-.2-2.9Z" />
+  </Icon>
+);
+export const IconImage = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <circle cx="9" cy="10" r="1.8" />
+    <path d="m4 17 4.5-4.5 3.5 3.5 3-3 5 5" />
+  </Icon>
+);
+export const IconSortie = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M14 4.5h3.5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H14M10 16l-4-4 4-4M6 12h9.5" />
+  </Icon>
+);
+export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+);

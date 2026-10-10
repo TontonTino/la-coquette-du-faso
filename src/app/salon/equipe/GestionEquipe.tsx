@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import type { Categorie, Coiffeuse } from "@/lib/salon/types";
 import { ajouterCategorieAction, ajouterCoiffeuseAction, modifierCoiffeuseAction, modifierWhatsappSalonAction } from "../actions";
-import { Carte, Champ, classeInput, Section, Vide } from "../ui";
+import { Carte, Champ, classeInput, Initiales, Section, Vide } from "../ui";
 
 const JOURS = [
   { n: 1, l: "Lun" },
@@ -39,7 +39,7 @@ function Pastilles<T extends string | number>({
             type="button"
             aria-pressed={on}
             onClick={() => onChange(on ? valeur.filter((x) => x !== o.v) : [...valeur, o.v])}
-            className={`min-h-11 min-w-11 rounded-full border px-3 text-sm ${on ? "border-noir bg-noir text-white" : "border-trait bg-white"}`}
+            className={`min-h-11 min-w-11 rounded-full border px-3 text-sm transition-colors ${on ? "border-noir bg-noir font-medium text-white" : "border-trait bg-white hover:border-or"}`}
           >
             {o.l}
           </button>
@@ -112,7 +112,7 @@ export function GestionEquipe({
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold">Équipe</h1>
+      <h1 className="font-display text-[2.2rem] leading-none font-bold">Équipe</h1>
 
       <Section titre="WhatsApp du salon">
         <Carte>
@@ -134,7 +134,13 @@ export function GestionEquipe({
           {categories.length === 0 ? (
             <p className="mb-3 text-sm text-sourdine">Commencez par créer les types de coiffure du salon (ex. : Tresses, Nattes collées, Tissage).</p>
           ) : (
-            <p className="mb-3 text-sm">{categories.map((c) => c.nom).join(" · ")}</p>
+            <ul className="mb-3 flex flex-wrap gap-1.5">
+              {categories.map((c) => (
+                <li key={c.id} className="rounded-full bg-or-pale px-3 py-1 text-sm text-or-fonce">
+                  {c.nom}
+                </li>
+              ))}
+            </ul>
           )}
           <div className="flex gap-2">
             <label className="flex-1">
@@ -248,13 +254,14 @@ function Fiche({
   }
   const specialites = c.categorieIds.map((id) => nomType.get(id)).filter(Boolean);
   return (
-    <Carte className="flex items-center justify-between gap-2 py-2.5">
-      <div className="min-w-0">
+    <Carte className="flex items-center justify-between gap-3 py-2.5">
+      <Initiales nom={c.nom} />
+      <div className="min-w-0 flex-1">
         <p className="font-semibold">{c.nom}</p>
         <p className="text-sm text-sourdine">{specialites.length ? specialites.join(", ") : "Aucune spécialité renseignée"}</p>
         <p className="text-xs text-sourdine">Congé : {nomsJours(c.joursConge)}</p>
       </div>
-      <button type="button" onClick={() => setEdition({ ...c })} className="min-h-11 shrink-0 px-2 text-sm underline">
+      <button type="button" onClick={() => setEdition({ ...c })} className="min-h-11 shrink-0 rounded-full border border-trait px-3 text-sm hover:border-or">
         Modifier
       </button>
     </Carte>

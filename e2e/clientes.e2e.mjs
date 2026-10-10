@@ -83,7 +83,7 @@ await verifier("La cliente envoie sa demande (FR-B01, FR-B02)", async () => {
   const premiere = groupe.getByRole("button").nth(1);
   coiffeuseSouhaitee = (await premiere.innerText()).trim();
   await premiere.click();
-  await cliente.getByLabel("5. Votre nom").fill(NOM);
+  await cliente.getByLabel(/^Votre nom/).fill(NOM);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
   await cliente.getByLabel("Précisions (facultatif)").fill("Longues, couleur naturelle");
   await largeurOk(cliente, "formulaire");
@@ -151,7 +151,7 @@ await verifier("Le rendez-vous apparaît chez la secrétaire et n'est plus une d
 let reference2 = "";
 await verifier("Refus avec motif, visible par la cliente (FR-B06)", async () => {
   await cliente.goto(`${BASE}/reserver`);
-  await cliente.getByLabel("5. Votre nom").fill(NOM2);
+  await cliente.getByLabel(/^Votre nom/).fill(NOM2);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
   await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
   await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
@@ -213,7 +213,7 @@ if (PHOTO) {
     await cliente.waitForURL(/\/reserver\?modele=/);
     const choisi = cliente.getByRole("button", { name: new RegExp(`Nattes et vanilles ${SUFFIXE}`) });
     if ((await choisi.getAttribute("aria-pressed")) !== "true") throw new Error("modèle non présélectionné");
-    await cliente.getByLabel("5. Votre nom").fill(`Fanta ${SUFFIXE}`);
+    await cliente.getByLabel(/^Votre nom/).fill(`Fanta ${SUFFIXE}`);
     await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
     await largeurOk(cliente, "formulaire avec modèles");
     await capture(cliente, "11-formulaire-modele");

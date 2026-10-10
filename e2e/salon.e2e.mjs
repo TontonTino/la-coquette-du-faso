@@ -136,7 +136,7 @@ await verifier("Rendez-vous « Tresses » avec une coiffeuse compétente (FR-006
   await page.getByRole("button", { name: "+ Rendez-vous" }).click();
   await page.getByLabel("Nom de la cliente").fill(CLIENTE_RDV);
   await page.getByLabel("Téléphone (WhatsApp)").fill("70 12 34 56");
-  await page.getByLabel("Heure").selectOption("20:00");
+  await page.getByLabel("Heure").selectOption("20:45");
   await page.getByRole("button", { name: "Tresses", exact: true }).click();
   await page.getByRole("button", { name: "Première disponible" }).waitFor();
   await page.waitForTimeout(600); // la liste des coiffeuses compétentes se met à jour
@@ -151,7 +151,7 @@ await verifier("Rendez-vous « Tresses » avec une coiffeuse compétente (FR-006
 
 await verifier("La coiffeuse prise n'est plus proposée sur le même créneau (BR-001)", async () => {
   await page.getByRole("button", { name: "+ Rendez-vous" }).click();
-  await page.getByLabel("Heure").selectOption("20:30");
+  await page.getByLabel("Heure").selectOption("20:45");
   await page.getByRole("button", { name: "Première disponible" }).waitFor();
   await page.waitForTimeout(800);
   const noms = await page.getByRole("button").allInnerTexts();

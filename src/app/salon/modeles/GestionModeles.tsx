@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
+import { IconImage } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/Toast";
 import { reduireImage } from "@/lib/salon/image-client";
 import { DUREES_RAPIDES, fourchetteDuree, fourchettePrix } from "@/lib/salon/regles";
@@ -84,22 +85,27 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
   if (b) {
     return (
       <div>
-        <button type="button" onClick={() => setB(null)} className="min-h-11 text-sm text-sourdine underline">
+        <button type="button" onClick={() => setB(null)} className="-ml-2 min-h-11 rounded-full px-3 text-sm font-medium text-sourdine hover:bg-noir/5 hover:text-encre">
           ‹ Retour
         </button>
-        <h1 className="font-display text-3xl font-bold">{b.id ? "Modifier le modèle" : "Nouveau modèle"}</h1>
-        <Carte className="mt-3">
-          <div className="mb-4">
-            {b.apercu ? (
-              // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application (ou aperçu local)
-              <img src={b.apercu} alt="Aperçu du modèle" className="aspect-[4/5] w-full rounded-xl object-cover" />
-            ) : (
-              <div className="flex aspect-[4/5] w-full items-center justify-center rounded-xl border border-dashed border-trait text-sm text-sourdine">
-                Aucune photo
-              </div>
-            )}
-            <label className="mt-3 flex min-h-12 cursor-pointer items-center justify-center rounded-full border border-noir/15 bg-white text-sm font-medium">
-              {preparation ? "Préparation de la photo…" : b.apercu ? "Changer la photo" : "Choisir une photo"}
+        <h1 className="mt-1 font-display text-[2.2rem] leading-none font-bold">{b.id ? "Modifier le modèle" : "Nouveau modèle"}</h1>
+        <Carte className="mt-4">
+          <div className="mb-5">
+            <label className="group relative block cursor-pointer">
+              {b.apercu ? (
+                // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application (ou aperçu local)
+                <img src={b.apercu} alt="Aperçu du modèle" className="aspect-[4/5] w-full rounded-[1.25rem] object-cover" />
+              ) : (
+                <span className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-2 rounded-[1.25rem] border-2 border-dashed border-or/50 bg-or-pale/40 text-or-fonce group-hover:border-or">
+                  <IconImage width={40} height={40} strokeWidth={1.3} />
+                  <span className="text-sm font-medium">Touchez pour choisir une photo</span>
+                </span>
+              )}
+              <span
+                className={`mt-3 flex min-h-12 items-center justify-center rounded-full text-sm font-medium ${b.apercu ? "border border-noir/15 bg-white" : "bg-noir text-white"}`}
+              >
+                {preparation ? "Préparation de la photo…" : b.apercu ? "Changer la photo" : "Choisir une photo"}
+              </span>
               <input type="file" accept="image/*" className="sr-only" onChange={(e) => choisirPhoto(e.target.files?.[0])} />
             </label>
           </div>
@@ -114,7 +120,7 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
                   type="button"
                   aria-pressed={b.categorieId === o.v}
                   onClick={() => setB({ ...b, categorieId: o.v })}
-                  className={`min-h-11 rounded-full border px-4 text-sm ${b.categorieId === o.v ? "border-noir bg-noir text-white" : "border-trait bg-white"}`}
+                  className={`min-h-11 rounded-full border px-4 text-sm transition-colors ${b.categorieId === o.v ? "border-noir bg-noir font-medium text-white" : "border-trait bg-white hover:border-or"}`}
                 >
                   {o.l}
                 </button>
@@ -166,14 +172,16 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
   const actifs = modeles.filter((m) => m.actif);
   const retires = modeles.filter((m) => !m.actif);
   const grille = (liste: Modele[]) => (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-x-3 gap-y-4">
       {liste.map((m) => (
-        <button key={m.id} type="button" onClick={() => setB(versBrouillon(m))} className="overflow-hidden rounded-xl border border-trait bg-white text-left">
-          {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
-          <img src={m.photoUrl} alt="" loading="lazy" className={`aspect-[4/5] w-full object-cover ${m.actif ? "" : "opacity-50"}`} />
-          <span className="block p-2">
-            <span className="block text-sm font-semibold">{m.nom}</span>
-            <span className="block text-xs text-sourdine">{[m.categorieId ? nomType.get(m.categorieId) : null, fourchettePrix(m.prixMin, m.prixMax), fourchetteDuree(m.dureeMin, m.dureeMax)].filter(Boolean).join(" · ") || "Modifier"}</span>
+        <button key={m.id} type="button" onClick={() => setB(versBrouillon(m))} className="group text-left">
+          <span className="block overflow-hidden rounded-[1.25rem] shadow-carte">
+            {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application */}
+            <img src={m.photoUrl} alt="" loading="lazy" className={`aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] ${m.actif ? "" : "opacity-50 grayscale"}`} />
+          </span>
+          <span className="mt-2 block text-sm leading-snug font-semibold">{m.nom}</span>
+          <span className="block text-xs text-sourdine">
+            {[m.categorieId ? nomType.get(m.categorieId) : null, fourchettePrix(m.prixMin, m.prixMax), fourchetteDuree(m.dureeMin, m.dureeMax)].filter(Boolean).join(", ") || "Modifier"}
           </span>
         </button>
       ))}
@@ -182,15 +190,15 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
 
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold">Modèles</h1>
-      <p className="mt-1 text-sm text-sourdine">Les photos que les clientes voient sur le site pour choisir leur coiffure.</p>
+      <h1 className="font-display text-[2.2rem] leading-none font-bold">Modèles</h1>
+      <p className="mt-2 text-sm text-sourdine">Les photos que les clientes voient sur le site pour choisir leur coiffure.</p>
       <Button variant="noir" size="lg" className="mt-3 w-full" onClick={() => setB({ ...vide })}>
         + Ajouter un modèle
       </Button>
       <p className="mt-2 text-xs text-sourdine">
         Utilisez des photos du salon. Si une cliente est reconnaissable, demandez-lui d&apos;abord son accord.
       </p>
-      <Section titre="Proposés aux clientes" nombre={actifs.length}>
+      <Section titre="Proposés aux clientes" nombre={actifs.length} ton="or">
         {actifs.length === 0 ? <Vide>Aucun modèle pour l&apos;instant.</Vide> : grille(actifs)}
       </Section>
       {retires.length > 0 && (

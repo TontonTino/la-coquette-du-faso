@@ -15,7 +15,7 @@ export function FormulaireConnexion() {
           autoComplete="username"
           autoCapitalize="none"
           required
-          className="h-12 rounded-xl border border-trait bg-white px-3 text-base"
+          className="h-12 rounded-2xl border border-trait bg-white px-4 text-base focus:border-or focus:ring-4 focus:ring-or/15 focus:outline-none"
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm font-medium text-encre">
@@ -25,7 +25,7 @@ export function FormulaireConnexion() {
           type="password"
           autoComplete="current-password"
           required
-          className="h-12 rounded-xl border border-trait bg-white px-3 text-base"
+          className="h-12 rounded-2xl border border-trait bg-white px-4 text-base focus:border-or focus:ring-4 focus:ring-or/15 focus:outline-none"
         />
       </label>
       {etat?.erreur && (

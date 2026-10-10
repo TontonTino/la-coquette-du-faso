@@ -12,9 +12,11 @@ export const metadata: Metadata = { title: "Demander un rendez-vous" };
 export default function PageReserver({ searchParams }: PageProps<"/reserver">) {
   return (
     <HabillagePublic>
-      <h1 className="font-display text-3xl font-bold">Demander un rendez-vous</h1>
-      <p className="mt-1 text-sm text-sourdine">Le salon vous confirme l&apos;heure exacte sur WhatsApp.</p>
-      <Suspense fallback={<div className="mt-6 h-96 animate-pulse rounded-2xl bg-white" />}>
+      <h1 className="font-display text-[2.5rem] leading-[0.95] font-bold">
+        Demander un <span className="whitespace-nowrap">rendez-vous</span>
+      </h1>
+      <p className="mt-3 text-sm text-sourdine">Une minute suffit. Le salon vous confirme l&apos;heure exacte sur WhatsApp.</p>
+      <Suspense fallback={<div className="mt-6 h-96 animate-pulse rounded-3xl bg-sable" />}>
         <Donnees searchParams={searchParams} />
       </Suspense>
     </HabillagePublic>
