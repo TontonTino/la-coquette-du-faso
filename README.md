@@ -1,4 +1,54 @@
-# La Coquette du Faso — démo de réservation
+# La Coquette du Faso — MIA
+
+Ce dépôt contient deux parties :
+
+1. **L'espace salon (`/salon`)** — l'outil réel de la secrétaire et de la gérante : file d'attente, rendez-vous, coiffeuses et leurs spécialités, bilan du soir. Données dans PostgreSQL, connexion obligatoire. Voir « Espace salon » ci-dessous et `docs/`.
+2. **La démo de réservation (`/`)** — prototype sur données fictives (localStorage), conservé comme référence pour la phase B (réservation en ligne par les clientes).
+
+## Espace salon
+
+### Mise en place (PowerShell)
+
+Prérequis : Node.js 24, une base PostgreSQL 16 (locale, ou Neon).
+
+```powershell
+npm install
+Copy-Item .env.example .env.local   # puis renseigner DATABASE_URL
+$env:DATABASE_URL = "postgres://..."              # la même valeur que dans .env.local
+npm run db:migrate                                 # crée les tables (rejouable sans risque)
+$env:MOT_DE_PASSE_GERANTE = "au-moins-10-caracteres"
+$env:MOT_DE_PASSE_SECRETAIRE = "au-moins-10-caracteres"
+npm run db:seed                                    # salon + comptes « gerante » et « secretaire »
+# npm run db:seed -- --demo                        # en développement : + 6 types de coiffure et 20 coiffeuses fictives
+npm run dev                                        # http://localhost:3000/salon
+```
+
+Ensuite, la gérante se connecte, crée les **types de coiffure** et les **coiffeuses** (onglet Équipe), avec leurs spécialités et jours de congé.
+
+### Tests de l'espace salon
+
+```powershell
+npm test                                           # unitaires (les tests d'intégration sont ignorés sans base de test)
+$env:DATABASE_URL_TEST = "postgres://.../mia_test" # base EFFACÉE à chaque lancement
+npm test                                           # + tests d'intégration sur PostgreSQL (concurrence, isolation des salons…)
+# parcours complet dans un navigateur, sur une base initialisée avec --demo et l'application lancée sur le port 3200 :
+$env:BASE_URL = "http://localhost:3200"; $env:MDP_SECRETAIRE = "..."; $env:MDP_GERANTE = "..."
+npm run test:e2e:salon
+```
+
+### Organisation
+
+| Dossier | Contenu |
+| --- | --- |
+| `db/migrations/` | Schéma SQL (contrainte anti-chevauchement, clés composées par salon) |
+| `src/lib/salon/` | Règles métier pures et construction des vues (testées sans base) |
+| `src/server/` | Accès base, connexion, service métier (seule porte vers les données) |
+| `src/app/salon/` | Écrans et actions serveur de l'espace salon |
+| `docs/` | Vision, analyse, exigences, ADR, traçabilité |
+
+---
+
+# Démo de réservation (prototype)
 
 Application web de démonstration (mobile et ordinateur) pour le salon de beauté **La Coquette du Faso**, à Ouagadougou. Elle comporte trois espaces : **Cliente**, **Coiffeuse** et **Gérante**.
 

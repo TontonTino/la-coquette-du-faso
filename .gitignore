@@ -42,3 +42,6 @@ next-env.d.ts
 e2e/captures/
 
 .vercel
+
+# exemple de configuration (sans secret)
+!.env.example

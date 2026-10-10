@@ -1,0 +1,17 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+/**
+ * Redirection rapide vers la connexion quand aucun cookie de session n'est présent.
+ * Ce n'est qu'un confort : la vraie vérification (session valide, rôle) est faite
+ * côté serveur dans chaque page et chaque action (src/server/auth.ts).
+ */
+export function proxy(request: NextRequest) {
+  if (!request.cookies.has("mia_session")) {
+    return NextResponse.redirect(new URL("/connexion", request.url));
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/salon", "/salon/:path*"],
+};

@@ -11,11 +11,15 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "test:e2e": "node e2e/demo.e2e.mjs"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test:e2e": "node e2e/demo.e2e.mjs",
+    "db:migrate": "node scripts/db-migrate.mjs",
+    "db:seed": "node scripts/db-seed.mts",
+    "test:e2e:salon": "node e2e/salon.e2e.mjs"
   },
   "dependencies": {
     "next": "16.4.0",
+    "postgres": "3.4.7",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

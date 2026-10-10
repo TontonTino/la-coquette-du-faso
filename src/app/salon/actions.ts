@@ -1,0 +1,163 @@
+"use server";
+
+import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
+import type { Paiement, Resultat } from "@/lib/salon/types";
+import { exigerAction, NonAutorise, seConnecter, seDeconnecter } from "@/server/auth";
+import * as svc from "@/server/salon/service";
+
+/**
+ * Actions serveur de l'espace salon. Chacune :
+ * 1. revérifie la session et le rôle (exigerAction) ;
+ * 2. appelle le service métier, qui valide les données et filtre par salon ;
+ * 3. rafraîchit la page courante dans la même réponse (refresh).
+ * Les entrées venant du navigateur ne sont jamais considérées comme fiables.
+ */
+
+type R<T = undefined> = Resultat<T>;
+
+async function executer<T>(fn: () => Promise<R<T>>): Promise<R<T>> {
+  try {
+    const r = await fn();
+    if (r.ok) refresh();
+    return r;
+  } catch (e) {
+    if (e instanceof NonAutorise) return { ok: false, erreur: e.message };
+    console.error("[salon] action en échec", e);
+    return { ok: false, erreur: "Une erreur est survenue. Réessayez dans un instant." };
+  }
+}
+
+const texte = (v: unknown, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
+const entier = (v: unknown) => (typeof v === "number" ? v : Number.parseInt(texte(v, 12), 10));
+const ids = (v: unknown, max = 3) => (Array.isArray(v) ? v.slice(0, max).map((x) => texte(x, 40)) : []);
+const idOuNull = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 40) : null);
+
+export interface SaisieRdvClient {
+  clientNom: string;
+  clientTel: string;
+  jour: string;
+  heure: string;
+  dureeMin: number;
+  coiffeuseIds: string[];
+  modele: string;
+  categorieId: string | null;
+}
+
+function saisieRdv(s: SaisieRdvClient): svc.SaisieRendezVous {
+  return {
+    clientNom: texte(s?.clientNom, 80),
+    clientTel: texte(s?.clientTel, 30),
+    jour: texte(s?.jour, 10),
+    heure: texte(s?.heure, 5),
+    dureeMin: entier(s?.dureeMin),
+    coiffeuseIds: ids(s?.coiffeuseIds),
+    modele: texte(s?.modele, 250),
+    categorieId: idOuNull(s?.categorieId),
+  };
+}
+
+export async function creerRendezVousAction(s: SaisieRdvClient) {
+  return executer(async () => svc.creerRendezVous(await exigerAction(), saisieRdv(s)));
+}
+
+export async function modifierRendezVousAction(id: string, s: SaisieRdvClient) {
+  return executer(async () => svc.modifierRendezVous(await exigerAction(), texte(id, 40), saisieRdv(s)));
+}
+
+export async function ajouterSansRendezVousAction(s: { clientNom: string; clientTel: string; modele: string; categorieId: string | null }) {
+  return executer(async () =>
+    svc.ajouterSansRendezVous(await exigerAction(), {
+      clientNom: texte(s?.clientNom, 80),
+      clientTel: texte(s?.clientTel, 30),
+      modele: texte(s?.modele, 250),
+      categorieId: idOuNull(s?.categorieId),
+    }),
+  );
+}
+
+export async function arriveeAction(id: string) {
+  return executer(async () => svc.marquerArrivee(await exigerAction(), texte(id, 40)));
+}
+
+export async function demarrerAction(id: string, s: { dureeMin: number; coiffeuseIds: string[] }) {
+  return executer(async () => svc.demarrer(await exigerAction(), texte(id, 40), { dureeMin: entier(s?.dureeMin), coiffeuseIds: ids(s?.coiffeuseIds) }));
+}
+
+export async function terminerAction(id: string, s: { prix: number; paiement: Paiement }) {
+  return executer(async () =>
+    svc.terminer(await exigerAction(), texte(id, 40), { prix: entier(s?.prix), paiement: texte(s?.paiement, 20) as Paiement }),
+  );
+}
+
+export async function annulerAction(id: string) {
+  return executer(async () => svc.annuler(await exigerAction(), texte(id, 40)));
+}
+
+export async function absenteAction(id: string) {
+  return executer(async () => svc.marquerAbsente(await exigerAction(), texte(id, 40)));
+}
+
+export async function basculerAbsenceAction(coiffeuseId: string, jour: string) {
+  return executer(async () => svc.basculerAbsence(await exigerAction(), texte(coiffeuseId, 40), texte(jour, 10)));
+}
+
+/** Lecture seule : ne rafraîchit pas la page. */
+export async function coiffeusesLibresAction(q: {
+  jour: string;
+  heure: string | null;
+  dureeMin: number;
+  ignorer: string | null;
+  categorieId: string | null;
+}) {
+  try {
+    return await svc.coiffeusesLibres(await exigerAction(), {
+      jour: texte(q?.jour, 10),
+      heure: q?.heure ? texte(q.heure, 5) : null,
+      dureeMin: entier(q?.dureeMin),
+      ignorer: idOuNull(q?.ignorer),
+      categorieId: idOuNull(q?.categorieId),
+    });
+  } catch (e) {
+    if (e instanceof NonAutorise) return { ok: false as const, erreur: e.message };
+    throw e;
+  }
+}
+
+export async function ajouterCoiffeuseAction(s: { nom: string; joursConge: number[]; categorieIds: string[] }) {
+  return executer(async () =>
+    svc.ajouterCoiffeuse(await exigerAction(["gerante"]), {
+      nom: texte(s?.nom, 80),
+      joursConge: Array.isArray(s?.joursConge) ? s.joursConge.slice(0, 7).map(entier) : [],
+      categorieIds: ids(s?.categorieIds, 50),
+    }),
+  );
+}
+
+export async function ajouterCategorieAction(nom: string) {
+  return executer(async () => svc.ajouterCategorie(await exigerAction(["gerante"]), texte(nom, 60)));
+}
+
+export async function modifierCoiffeuseAction(id: string, s: { nom: string; joursConge: number[]; actif: boolean; categorieIds: string[] }) {
+  return executer(async () =>
+    svc.modifierCoiffeuse(await exigerAction(["gerante"]), texte(id, 40), {
+      nom: texte(s?.nom, 80),
+      joursConge: Array.isArray(s?.joursConge) ? s.joursConge.slice(0, 7).map(entier) : [],
+      actif: s?.actif === true,
+      categorieIds: ids(s?.categorieIds, 50),
+    }),
+  );
+}
+
+/* ---------------- Connexion ---------------- */
+
+export async function connexionAction(_prev: { erreur: string } | null, form: FormData): Promise<{ erreur: string } | null> {
+  const ok = await seConnecter(texte(form.get("identifiant"), 60), texte(form.get("motDePasse"), 200));
+  if (!ok) return { erreur: "Identifiant ou mot de passe incorrect." };
+  redirect("/salon");
+}
+
+export async function deconnexionAction() {
+  await seDeconnecter();
+  redirect("/connexion");
+}
