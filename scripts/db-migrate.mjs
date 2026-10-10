@@ -6,7 +6,12 @@ import postgres from "postgres";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
-  console.error("DATABASE_URL manquant.");
+  console.error("✘ DATABASE_URL manquant : indiquez l'adresse de la base (voir docs/09-deployment.md).");
+  process.exit(1);
+}
+if (!/^postgres(ql)?:\/\//.test(url)) {
+  console.error("✘ DATABASE_URL n'est pas une adresse PostgreSQL : elle doit commencer par postgresql://");
+  console.error("  (Remplacez bien le texte d'exemple par votre vraie adresse Neon.)");
   process.exit(1);
 }
 
@@ -18,7 +23,8 @@ function nettoyerUrl(url) {
 }
 
 const dir = fileURLToPath(new URL("../db/migrations/", import.meta.url));
-const sql = postgres(nettoyerUrl(url), { max: 1, onnotice: () => {} });
+// prepare: false : compatible avec le pooler de Neon (adresse « -pooler » utilisée par Vercel).
+const sql = postgres(nettoyerUrl(url), { max: 1, prepare: false, onnotice: () => {} });
 
 try {
   await sql`CREATE TABLE IF NOT EXISTS schema_migrations (nom text PRIMARY KEY, appliquee_le timestamptz NOT NULL DEFAULT now())`;

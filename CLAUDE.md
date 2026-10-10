@@ -13,4 +13,4 @@ l'auteur est le propriétaire du compte**. Un commit signé par un autre auteur 
 ## Base de données
 
 - Toute évolution du schéma passe par un nouveau fichier `db/migrations/NNN_nom.sql` (jamais modifier une migration déjà appliquée).
-- Appliquer la migration sur Neon (`npm run db:migrate`) **avant** de pousser le code qui en dépend.
+- Les migrations sont appliquées automatiquement par `npm run vercel-build` avant chaque build Vercel ; une migration doit donc réussir sur une base déjà en service (pas de destruction de données, valeurs par défaut pour les colonnes NOT NULL).

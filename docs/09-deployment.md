@@ -7,13 +7,20 @@
 
 ## Procédure, à chaque nouvelle version
 
-1. **Migrations d'abord** (si `db/migrations/` a changé), avec l'adresse Neon **sans** `-pooler` :
-   ```powershell
-   $env:DATABASE_URL = "<adresse Neon sans pooled>"
-   npm run db:migrate
-   ```
-2. **Pousser** sur `master` : `git push origin master`. Vercel déploie automatiquement (environ 1 min).
+1. **Pousser** sur `master` : `git push origin master`.
+2. Vercel lance `npm run vercel-build`, qui **applique d'abord les migrations** (`db/migrations/`) sur la base de
+   `DATABASE_URL`, puis construit le site. Si une migration échoue, le build échoue et **l'ancienne version reste en
+   ligne** : le site n'est jamais servi avec une base en retard sur le code.
 3. **Vérifier** dans Vercel → Deployments que la ligne du haut porte le **dernier commit** et le statut « Ready ».
+   « Error » : ouvrir Build Logs ; une ligne `Échec de la migration` indique le problème.
+
+Appliquer une migration à la main reste possible (`npm run db:migrate` avec l'adresse Neon), mais n'est plus nécessaire.
+
+### Incident du 10/10/2026 (à ne pas reproduire)
+
+Le code du catalogue a été poussé alors que `npm run db:migrate` avait reçu le texte d'exemple au lieu de l'adresse
+Neon : la table `modele` n'existait pas et le site affichait « This page couldn't load ». Corrections : migrations
+automatiques au build (ci-dessus) et message clair quand l'adresse n'est pas une adresse PostgreSQL.
 
 ## Piège connu : commits non déployés
 
