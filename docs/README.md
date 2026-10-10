@@ -18,6 +18,7 @@ Ce dossier contient la documentation technique et produit de MIA, à côté du c
 | `adr/ADR-002-acces-base-de-donnees.md` | Accès à la base : SQL direct et migrations | Accepted |
 | `adr/ADR-003-connexion.md` | Connexion et sessions | Accepted |
 | `03-traceability.md` | Exigence → code → test → résultat | À jour |
+| `09-deployment.md` | Procédure de mise en ligne et pièges connus | À jour |
 | `CHANGELOG-exigences.md` | Changements d'exigences | À jour |
 
 Les autres fichiers arriveront au fil des phases (vision produit, exigences, architecture…). On ne crée un fichier que quand on a de quoi le remplir.
