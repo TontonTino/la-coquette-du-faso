@@ -137,3 +137,48 @@ export const IconPlus = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 5v14M5 12h14" />
   </Icon>
 );
+export const IconStar = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="m12 3.6 2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 17l-5.3 2.8 1.1-5.9L3.5 9.8l5.9-.8Z" />
+  </Icon>
+);
+export const IconPlay = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M8 5.5v13a.8.8 0 0 0 1.2.7l10.2-6.5a.8.8 0 0 0 0-1.4L9.2 4.8A.8.8 0 0 0 8 5.5Z" />
+  </Icon>
+);
+export const IconSon = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" />
+    <path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.8a7.4 7.4 0 0 1 0 10.4" />
+  </Icon>
+);
+export const IconSilence = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4Z" />
+    <path d="m16 9.5 5 5M21 9.5l-5 5" />
+  </Icon>
+);
+export const IconPhone = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M6.6 3.5h2.8l1.3 3.6-1.8 1.3a11 11 0 0 0 5.7 5.7l1.3-1.8 3.6 1.3v2.8a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 4.6 5.7a2 2 0 0 1 2-2.2Z" />
+  </Icon>
+);
+export const IconMail = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
+    <path d="m4.5 7.5 7.5 5.5 7.5-5.5" />
+  </Icon>
+);
+export const IconPin = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <path d="M12 21s6.5-5.6 6.5-11a6.5 6.5 0 0 0-13 0C5.5 15.4 12 21 12 21Z" />
+    <circle cx="12" cy="10" r="2.3" />
+  </Icon>
+);
+export const IconVideo = (p: SVGProps<SVGSVGElement>) => (
+  <Icon {...p}>
+    <rect x="3.5" y="6" width="12.5" height="12" rx="2.5" />
+    <path d="m16 10.5 4.5-2.5v8L16 13.5" />
+  </Icon>
+);

@@ -5,11 +5,11 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { IconWhatsApp } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/Toast";
-import { DUREES_RAPIDES } from "@/lib/salon/regles";
+import { DERNIER_DEBUT_MIN, DUREES_RAPIDES, HEURES_SALON, OUVERTURE_MIN } from "@/lib/salon/regles";
 import type { Categorie, Paiement, Resultat } from "@/lib/salon/types";
 import type { CartePrestation, Journee } from "@/lib/salon/vue";
 import { libelleMoment } from "@/lib/salon/regles";
-import { lienWhatsApp, messageConfirmation, messageRefus } from "@/lib/salon/whatsapp";
+import { lienWhatsApp, messageAvis, messageConfirmation, messageRefus } from "@/lib/salon/whatsapp";
 import type { Demande } from "@/server/salon/service";
 import { addDays, capitalize, formatDateMedium, formatDuration, formatFcfa } from "@/lib/time";
 import {
@@ -23,6 +23,7 @@ import {
   refuserDemandeAction,
   demarrerAction,
   modifierRendezVousAction,
+  referenceAvisAction,
   terminerAction,
 } from "./actions";
 import { Carte, Champ, Choix, classeInput, Pastille, Section, Vide } from "./ui";
@@ -78,7 +79,7 @@ export function EcranSalon({
     return <FormConfirmerDemande demande={ecran.demande} aujourdhui={aujourdhui} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
   if (ecran.type === "refuser") return <FormRefuserDemande demande={ecran.demande} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
   if (ecran.type === "prevenir") return <Prevenir titre={ecran.titre} texte={ecran.texte} lien={ecran.lien} onFini={retour} />;
-  return <Liste journee={journee} demandes={demandes} ouvrir={setEcran} />;
+  return <Liste journee={journee} demandes={demandes} ouvrir={setEcran} salonNom={salonNom} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -117,9 +118,20 @@ function avancement(heureDebut: string | null, dureeMin: number): number {
 
 const lienTel = (tel: string) => lienWhatsApp(tel);
 
-function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Demande[]; ouvrir: (e: Ecran) => void }) {
+function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; demandes: Demande[]; ouvrir: (e: Ecran) => void; salonNom: string }) {
   const { enCours, lancer } = useAction();
-  const { attente, enCours: cours, aVenir, compteurs } = journee;
+  const toast = useToast();
+  const [preparation, start] = useTransition();
+  const { attente, enCours: cours, aVenir, terminees, compteurs } = journee;
+
+  /** Crée (si besoin) le lien d'avis de la cliente et ouvre le message WhatsApp prêt à envoyer. */
+  const demanderAvis = (c: CartePrestation) =>
+    start(async () => {
+      const r = await referenceAvisAction(c.id);
+      if (!r.ok) return toast("erreur", r.erreur);
+      const texte = messageAvis({ clientNom: r.valeur.clientNom, salonNom, coiffeuses: c.coiffeuses, lienAvis: lienSuivi(r.valeur.reference) });
+      ouvrir({ type: "prevenir", titre: "Demander son avis", texte, lien: lienWhatsApp(r.valeur.clientTel, texte) });
+    });
   const lienAction = "min-h-11 rounded-full px-3 text-sm text-sourdine hover:bg-noir/5 hover:text-encre";
   return (
     <div>
@@ -303,6 +315,31 @@ function Liste({ journee, demandes, ouvrir }: { journee: Journee; demandes: Dema
           </Carte>
         ))}
       </Section>
+
+      {terminees.length > 0 && (
+        <Section titre="Terminées aujourd'hui" nombre={terminees.length} ton="vert">
+          {terminees.map((c) => (
+            <Carte key={c.id} ton="vert" className="py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">{c.clientNom}</p>
+                  <p className="text-sm text-sourdine">
+                    {qui(c)}
+                    {c.prixPaye !== null ? `, ${formatFcfa(c.prixPaye)}` : ""}
+                  </p>
+                </div>
+                {c.clientTel ? (
+                  <Button variant="contour" loading={preparation} onClick={() => demanderAvis(c)}>
+                    Demander son avis
+                  </Button>
+                ) : (
+                  <span className="text-xs text-sourdine">Pas de numéro</span>
+                )}
+              </div>
+            </Carte>
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
@@ -399,15 +436,12 @@ function ChoixCoiffeuses({
   );
 }
 
-const HEURES = Array.from({ length: (21 - 7) * 4 }, (_, i) => {
-  const m = 7 * 60 + i * 15;
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-});
+const HEURES = HEURES_SALON;
 
 function prochaineHeure(): string {
   const d = new Date();
   const m = Math.ceil((d.getUTCHours() * 60 + d.getUTCMinutes() + 15) / 15) * 15;
-  const h = Math.min(Math.max(m, 7 * 60), 20 * 60 + 45);
+  const h = Math.min(Math.max(m, OUVERTURE_MIN), DERNIER_DEBUT_MIN);
   return `${String(Math.floor(h / 60)).padStart(2, "0")}:${String(h % 60).padStart(2, "0")}`;
 }
 
@@ -493,10 +527,10 @@ function FormRendezVous({
       <Champ groupe label="Durée estimée">
         <Choix libelle="Durée estimée" options={DUREES} valeur={duree} onChange={setDuree} />
       </Champ>
-      <Champ groupe label="Type de coiffure">
-        <Choix libelle="Type de coiffure" options={optionsCategories(categories)} valeur={categorie} onChange={setCategorie} />
+      <Champ groupe label="Type de service">
+        <Choix libelle="Type de service" options={optionsCategories(categories)} valeur={categorie} onChange={setCategorie} />
       </Champ>
-      <Champ groupe label="Coiffeuse(s)" aide="Seules les coiffeuses qui savent faire ce type de coiffure et qui sont libres sur tout le créneau sont proposées. 2 au maximum.">
+      <Champ groupe label="Coiffeuse(s)" aide="Seules les coiffeuses qui savent faire ce service et qui sont libres sur tout le créneau sont proposées. 2 au maximum.">
         <ChoixCoiffeuses libres={libres} choisies={valides} setChoisies={setChoisies} premiereDispo />
       </Champ>
       <Champ label="Modèle ou remarque (facultatif)">
@@ -525,8 +559,8 @@ function FormSansRendezVous({ categories, onFini }: { categories: Categorie[]; o
       <Champ label="Téléphone (facultatif)">
         <input className={classeInput} value={tel} onChange={(e) => setTel(e.target.value)} type="tel" inputMode="tel" placeholder="70 12 34 56" />
       </Champ>
-      <Champ groupe label="Type de coiffure">
-        <Choix libelle="Type de coiffure" options={optionsCategories(categories)} valeur={categorie} onChange={setCategorie} />
+      <Champ groupe label="Type de service">
+        <Choix libelle="Type de service" options={optionsCategories(categories)} valeur={categorie} onChange={setCategorie} />
       </Champ>
       <Champ label="Modèle ou remarque">
         <input className={classeInput} value={modele} onChange={(e) => setModele(e.target.value)} placeholder="Ex. : comme sur la photo, longueur épaules" />
@@ -714,7 +748,7 @@ function FormConfirmerDemande({
       <Champ groupe label="Durée estimée">
         <Choix libelle="Durée estimée" options={DUREES} valeur={duree} onChange={setDuree} />
       </Champ>
-      <Champ groupe label="Coiffeuse(s)" aide="Compétentes pour ce type de coiffure et libres sur tout le créneau.">
+      <Champ groupe label="Coiffeuse(s)" aide="Compétentes pour ce service et libres sur tout le créneau.">
         <ChoixCoiffeuses libres={libres} choisies={valides} setChoisies={setChoisies} premiereDispo={false} />
       </Champ>
       <Button variant="noir" size="lg" className="w-full" loading={enCours} onClick={confirmer}>

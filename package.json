@@ -17,9 +17,11 @@
     "db:seed": "node scripts/db-seed.mts",
     "test:e2e:salon": "node e2e/salon.e2e.mjs",
     "test:e2e:clientes": "node e2e/clientes.e2e.mjs",
+    "test:e2e:equipe": "node e2e/equipe-avis-videos.e2e.mjs",
     "vercel-build": "node scripts/db-migrate.mjs && next build"
   },
   "dependencies": {
+    "@vercel/blob": "2.8.1",
     "next": "16.4.0",
     "postgres": "3.4.7",
     "react": "19.3.0",

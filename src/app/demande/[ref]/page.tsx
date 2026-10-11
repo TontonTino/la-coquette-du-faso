@@ -11,6 +11,7 @@ import { lienWhatsApp } from "@/lib/salon/whatsapp";
 import { capitalize, formatDateLong } from "@/lib/time";
 import { suiviDemande } from "@/server/salon/service";
 import { Actualiser } from "./Actualiser";
+import { NoterCoiffeuses } from "./NoterCoiffeuses";
 
 export const metadata: Metadata = { title: "Suivi de ma demande", robots: { index: false, follow: false } };
 
@@ -109,6 +110,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
           Envoyer la photo du modèle sur WhatsApp
         </a>
       )}
+      {d.statut === "terminee" && d.aNoter.length > 0 && <NoterCoiffeuses reference={d.reference} coiffeuses={d.aNoter} />}
       {(e.ton === "ko" || d.statut === "terminee") && (
         <Link href="/reserver" className={buttonClasses("noir", "lg", "mt-5 w-full")}>
           Faire une nouvelle demande

@@ -38,3 +38,12 @@ export function messageRefus(p: { clientNom: string; salonNom: string; motif: st
     `Vous pouvez faire une nouvelle demande ici : ${p.lienReserver}`,
   ].join("\n");
 }
+
+export function messageAvis(p: { clientNom: string; salonNom: string; coiffeuses: string[]; lienAvis: string }): string {
+  const qui = p.coiffeuses.length ? p.coiffeuses.join(" et ") : "votre coiffeuse";
+  return [
+    `Bonjour ${prenom(p.clientNom)}, merci de votre visite à ${p.salonNom} !`,
+    `Comment s'est passé votre rendez-vous avec ${qui} ? Donnez votre avis en 10 secondes (de 1 à 5 étoiles) :`,
+    p.lienAvis,
+  ].join("\n");
+}

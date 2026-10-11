@@ -124,27 +124,37 @@ export async function coiffeusesLibresAction(q: {
   }
 }
 
-export async function ajouterCoiffeuseAction(s: { nom: string; joursConge: number[]; categorieIds: string[] }) {
+const photoOuNull = (v: unknown) => (typeof v === "string" ? v.slice(0, 1_200_000) : null);
+
+export async function ajouterCoiffeuseAction(s: { nom: string; joursConge: number[]; categorieIds: string[]; photo?: string | null }) {
   return executer(async () =>
     svc.ajouterCoiffeuse(await exigerAction(["gerante"]), {
       nom: texte(s?.nom, 80),
       joursConge: Array.isArray(s?.joursConge) ? s.joursConge.slice(0, 7).map(entier) : [],
       categorieIds: ids(s?.categorieIds, 50),
+      photo: photoOuNull(s?.photo),
     }),
   );
 }
 
-export async function ajouterCategorieAction(nom: string) {
-  return executer(async () => svc.ajouterCategorie(await exigerAction(["gerante"]), texte(nom, 60)));
+export async function ajouterCategorieAction(nom: string, famille: string = "coiffure") {
+  return executer(async () =>
+    svc.ajouterCategorie(await exigerAction(["gerante"]), texte(nom, 60), famille === "ongles" ? "ongles" : "coiffure"),
+  );
 }
 
-export async function modifierCoiffeuseAction(id: string, s: { nom: string; joursConge: number[]; actif: boolean; categorieIds: string[] }) {
+/** `photo` : absent = on garde l'ancienne ; texte = nouvelle photo ; null = on la retire. */
+export async function modifierCoiffeuseAction(
+  id: string,
+  s: { nom: string; joursConge: number[]; actif: boolean; categorieIds: string[]; photo?: string | null },
+) {
   return executer(async () =>
     svc.modifierCoiffeuse(await exigerAction(["gerante"]), texte(id, 40), {
       nom: texte(s?.nom, 80),
       joursConge: Array.isArray(s?.joursConge) ? s.joursConge.slice(0, 7).map(entier) : [],
       actif: s?.actif === true,
       categorieIds: ids(s?.categorieIds, 50),
+      ...(s && "photo" in s ? { photo: photoOuNull(s.photo) } : {}),
     }),
   );
 }
@@ -217,4 +227,23 @@ export async function ajouterModeleAction(s: SaisieModeleClient) {
 
 export async function modifierModeleAction(id: string, s: SaisieModeleClient) {
   return executer(async () => svc.modifierModele(await exigerAction(["gerante"]), texte(id, 40), saisieModele(s)));
+}
+
+/* ---------------- Avis et vidéos ---------------- */
+
+/** Lien de suivi (donc d'avis) d'une prestation terminée, pour l'envoyer à la cliente sur WhatsApp. */
+export async function referenceAvisAction(prestationId: string) {
+  return executer(async () => svc.referenceAvis(await exigerAction(), texte(prestationId, 40)));
+}
+
+export async function ajouterVideoAction(s: { titre: string; url: string; modeleId: string | null }) {
+  return executer(async () =>
+    svc.ajouterVideo(await exigerAction(["gerante"]), { titre: texte(s?.titre, 80), url: texte(s?.url, 520), modeleId: idOuNull(s?.modeleId) }),
+  );
+}
+
+export async function modifierVideoAction(id: string, s: { titre: string; modeleId: string | null; actif: boolean }) {
+  return executer(async () =>
+    svc.modifierVideo(await exigerAction(["gerante"]), texte(id, 40), { titre: texte(s?.titre, 80), modeleId: idOuNull(s?.modeleId), actif: s?.actif !== false }),
+  );
 }

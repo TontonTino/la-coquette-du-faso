@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -41,7 +41,7 @@ suite("service salon (PostgreSQL)", () => {
   });
 
   beforeEach(async () => {
-    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence, modele CASCADE");
+    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence, modele, avis, video CASCADE");
     const [sa] = await admin`INSERT INTO salon (nom, slug) VALUES ('Salon A', 'salon-a') RETURNING id`;
     const [sb] = await admin`INSERT INTO salon (nom) VALUES ('Salon B') RETURNING id`;
     const [ga] = await admin`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES (${sa.id}, 'gerante-a', 'Gérante A', 'gerante', 'x') RETURNING id`;
@@ -118,21 +118,21 @@ suite("service salon (PostgreSQL)", () => {
     const libres = await svc.coiffeusesLibres(secA, { jour: JOUR, heure: "14:00", dureeMin: 60, ignorer: null, categorieId: c.tresses }, NOW);
     expect(libres.ok && libres.valeur.map((x) => x.nom)).toEqual(["Awa"]);
     const refus = await svc.creerRendezVous(secA, rdv({ coiffeuseIds: [c.fatim], categorieId: c.tresses }), NOW);
-    expect(refus).toEqual({ ok: false, erreur: "Fatim ne fait pas ce type de coiffure (Tresses)." });
+    expect(refus).toEqual({ ok: false, erreur: "Fatim ne fait pas ce service (Tresses)." });
     expect((await svc.creerRendezVous(secA, rdv({ coiffeuseIds: [c.fatim], categorieId: c.tissage }), NOW)).ok).toBe(true);
     // Type d'un autre salon refusé
-    expect(await svc.creerRendezVous(secA, rdv({ heure: "18:00", categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Type de coiffure inconnu." });
+    expect(await svc.creerRendezVous(secA, rdv({ heure: "18:00", categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Type de service inconnu." });
     // Le démarrage respecte le type demandé à l'arrivée
     const w = await svc.ajouterSansRendezVous(secA, { clientNom: "Prisca", clientTel: "", modele: "", categorieId: c.tresses }, NOW);
     if (!w.ok) throw new Error(w.erreur);
     expect(await svc.demarrer(secA, w.valeur, { dureeMin: 60, coiffeuseIds: [c.fatim] }, NOW)).toEqual({
       ok: false,
-      erreur: "Fatim ne fait pas ce type de coiffure (Tresses).",
+      erreur: "Fatim ne fait pas ce service (Tresses).",
     });
     // La gérante met à jour les spécialités
     await svc.modifierCoiffeuse(A, c.fatim, { nom: "Fatim", joursConge: [1], actif: true, categorieIds: [c.tresses, c.tissage] });
     expect((await svc.demarrer(secA, w.valeur, { dureeMin: 60, coiffeuseIds: [c.fatim] }, NOW)).ok).toBe(true);
-    expect(await svc.ajouterCategorie(A, "Tresses")).toEqual({ ok: false, erreur: "Ce type de coiffure existe déjà." });
+    expect(await svc.ajouterCategorie(A, "Tresses")).toEqual({ ok: false, erreur: "Ce type de service existe déjà." });
     const equipe = await svc.listerEquipe(A);
     expect(equipe.categories.map((x) => x.nom)).toEqual(["Tissage", "Tresses"]);
   });
@@ -247,7 +247,7 @@ suite("service salon (PostgreSQL)", () => {
     const id = enAttente[0].id;
     expect(await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "09:00", dureeMin: 240, coiffeuseIds: [c.fatim] }, NOW)).toEqual({
       ok: false,
-      erreur: "Fatim ne fait pas ce type de coiffure (Tresses).",
+      erreur: "Fatim ne fait pas ce service (Tresses).",
     });
     const conf = await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "09:00", dureeMin: 240, coiffeuseIds: [c.awa] }, NOW);
     expect(conf).toEqual({ ok: true, valeur: { reference: d.valeur.reference, clientNom: "Aminata Ouédraogo", clientTel: "+226 70 11 22 33", coiffeuses: ["Awa"] } });
@@ -281,7 +281,7 @@ suite("service salon (PostgreSQL)", () => {
     // Coiffeuse souhaitée en congé ce jour-là (lundi) ou d'un autre salon
     expect(await svc.creerDemande("salon-a", demande({ coiffeuseSouhaitee: c.awa }), NOW)).toEqual({ ok: false, erreur: "Awa est en congé ce jour-là." });
     expect(await svc.creerDemande("salon-a", demande({ coiffeuseSouhaitee: c.zoe }), NOW)).toEqual({ ok: false, erreur: "Coiffeuse inconnue." });
-    expect(await svc.creerDemande("salon-a", demande({ categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Type de coiffure inconnu." });
+    expect(await svc.creerDemande("salon-a", demande({ categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Type de service inconnu." });
     // 3 demandes en attente maximum par numéro
     for (let i = 0; i < 3; i++) expect((await svc.creerDemande("salon-a", demande(), NOW)).ok).toBe(true);
     expect(await svc.creerDemande("salon-a", demande(), NOW)).toMatchObject({ ok: false, erreur: expect.stringMatching(/déjà 3 demandes/) });
@@ -336,7 +336,7 @@ suite("service salon (PostgreSQL)", () => {
     const lourde = "data:image/jpeg;base64," + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(900_000)]).toString("base64");
     expect(await svc.ajouterModele(A, modele({ photo: lourde }))).toMatchObject({ ok: false, erreur: expect.stringMatching(/trop lourde/) });
     expect(await svc.ajouterModele(A, modele({ prixMin: 9000, prixMax: 3000 }))).toMatchObject({ ok: false });
-    expect(await svc.ajouterModele(A, modele({ categorieId: c.tressesB }))).toEqual({ ok: false, erreur: "Type de coiffure inconnu." });
+    expect(await svc.ajouterModele(A, modele({ categorieId: c.tressesB }))).toEqual({ ok: false, erreur: "Type de service inconnu." });
   });
 
   it("une demande sur photo reprend le type et la durée du modèle (FR-C05)", async () => {
@@ -356,5 +356,158 @@ suite("service salon (PostgreSQL)", () => {
     expect(await svc.photoModele(m.valeur)).toBeNull();
     expect((await svc.listerModeles(A)).map((x) => x.actif)).toEqual([false]);
     expect(await svc.creerDemande("salon-a", demande({ modeleId: m.valeur, clientTel: "70 88 88 88" }), NOW)).toEqual({ ok: false, erreur: "Ce modèle n'est plus proposé." });
+  });
+  /* ---------------- Avis, équipe, services ongles, vidéos ---------------- */
+
+  /** Une prestation terminée avec Awa, pour une cliente qui a un numéro WhatsApp. */
+  async function prestationTerminee(tel = "70 55 44 33", ids: string[] = [c.awa]) {
+    const w = await svc.ajouterSansRendezVous(secA, { clientNom: "Prisca Kaboré", clientTel: tel, modele: "", categorieId: null }, NOW);
+    if (!w.ok) throw new Error(w.erreur);
+    expect((await svc.demarrer(secA, w.valeur, { dureeMin: 60, coiffeuseIds: ids }, NOW)).ok).toBe(true);
+    expect((await svc.terminer(secA, w.valeur, { prix: 5000, paiement: "especes" }, new Date("2026-10-10T12:30:00Z"))).ok).toBe(true);
+    return w.valeur;
+  }
+
+  it("la cliente note sa coiffeuse après la prestation ; la moyenne suit et la gérante lit le commentaire", async () => {
+    const w = await svc.ajouterSansRendezVous(secA, { clientNom: "Prisca Kaboré", clientTel: "70 55 44 33", modele: "", categorieId: null }, NOW);
+    if (!w.ok) throw new Error(w.erreur);
+    await svc.demarrer(secA, w.valeur, { dureeMin: 60, coiffeuseIds: [c.awa] }, NOW);
+    expect(await svc.referenceAvis(secA, w.valeur)).toEqual({ ok: false, erreur: expect.stringMatching(/terminée/) });
+    await svc.terminer(secA, w.valeur, { prix: 5000, paiement: "especes" }, new Date("2026-10-10T12:30:00Z"));
+
+    const r = await svc.referenceAvis(secA, w.valeur);
+    if (!r.ok) throw new Error(r.erreur);
+    expect(r.valeur.reference).toMatch(/^[A-Z2-9]{8}$/);
+    expect(r.valeur.clientTel).toBe("+226 70 55 44 33");
+    const encore = await svc.referenceAvis(secA, w.valeur); // idempotent : même lien
+    expect(encore.ok && encore.valeur.reference).toBe(r.valeur.reference);
+
+    const ref = r.valeur.reference;
+    const suivi = await svc.suiviDemande(ref);
+    expect(suivi).toMatchObject({ statut: "terminee", aNoter: [{ id: c.awa, nom: "Awa", note: null }] });
+    expect(JSON.stringify(suivi)).not.toContain("70 55 44 33");
+
+    expect(await svc.noterCoiffeuse(ref, c.awa, 5, "Très belle coiffure")).toEqual({ ok: true, valeur: undefined });
+    expect((await svc.suiviDemande(ref))?.aNoter[0].note).toBe(5);
+    // Elle peut corriger sa note : toujours un seul avis
+    expect((await svc.noterCoiffeuse(ref, c.awa, 4, "")).ok).toBe(true);
+    const [{ n }] = await admin`SELECT count(*)::int AS n FROM avis`;
+    expect(n).toBe(1);
+
+    // Refus : mauvaise coiffeuse, note invalide, référence inconnue, coiffeuse d'un autre salon
+    expect(await svc.noterCoiffeuse(ref, c.fatim, 4, "")).toEqual({ ok: false, erreur: "Cette coiffeuse n'a pas fait votre prestation." });
+    expect(await svc.noterCoiffeuse(ref, c.awa, 0, "")).toMatchObject({ ok: false, erreur: expect.stringMatching(/étoiles/) });
+    expect(await svc.noterCoiffeuse(ref, c.awa, 6, "")).toMatchObject({ ok: false });
+    expect(await svc.noterCoiffeuse("AAAAAAAA", c.awa, 5, "")).toEqual({ ok: false, erreur: "Rendez-vous introuvable." });
+    expect(await svc.noterCoiffeuse(ref, c.zoe, 5, "")).toMatchObject({ ok: false });
+    expect(await svc.noterCoiffeuse("pas-une-ref", c.awa, 5, "")).toEqual({ ok: false, erreur: "Avis impossible." });
+
+    // La gérante voit la moyenne dès le premier avis ; les clientes seulement à partir de 3
+    const awa = (await svc.listerEquipe(A)).coiffeuses.find((x) => x.id === c.awa);
+    expect(awa).toMatchObject({ moyenne: 4, nbAvis: 1 });
+    expect((await svc.salonPublic("salon-a"))?.coiffeuses.find((x) => x.id === c.awa)).toMatchObject({ note: null, nbAvis: 1 });
+    expect(await svc.derniersAvis(A)).toEqual([{ coiffeuse: "Awa", note: 4, commentaire: null, jour: JOUR }]);
+    await expect(svc.derniersAvis(secA)).rejects.toThrow(/non autorisée/);
+  });
+
+  it("la note n'est possible qu'après la prestation, et la référence reste propre au salon", async () => {
+    const d = await svc.creerDemande("salon-a", demande({ jour: "2026-10-13" }), NOW);
+    if (!d.ok) throw new Error(d.erreur);
+    expect(await svc.noterCoiffeuse(d.valeur.reference, c.awa, 5, "")).toEqual({ ok: false, erreur: expect.stringMatching(/terminée/) });
+    const w = await prestationTerminee();
+    expect(await svc.referenceAvis(B, w)).toEqual({ ok: false, erreur: "Prestation inconnue." });
+    // Une cliente sans numéro ne reçoit pas de lien
+    const sans = await prestationTerminee("", [c.fatim]);
+    expect(await svc.referenceAvis(secA, sans)).toEqual({ ok: false, erreur: expect.stringMatching(/numéro/) });
+  });
+
+  it("classe les coiffeuses par note : la mieux notée apparaît en premier sur la page publique", async () => {
+    // Fatim : 3 avis à 5 ; Awa : 3 avis à 3 ; Clarisse : aucun
+    for (const [id, note] of [[c.fatim, 5], [c.awa, 3]] as const) {
+      for (let i = 0; i < 3; i++) {
+        const w = await svc.ajouterSansRendezVous(secA, { clientNom: `Cliente ${id.slice(0, 4)}${i}`, clientTel: "", modele: "", categorieId: null }, NOW);
+        if (!w.ok) throw new Error(w.erreur);
+        await svc.demarrer(secA, w.valeur, { dureeMin: 60, coiffeuseIds: [id] }, new Date(`2026-10-10T${String(12 + i)}:00:00Z`));
+        await svc.terminer(secA, w.valeur, { prix: 5000, paiement: "especes" }, new Date(`2026-10-10T${String(13 + i)}:30:00Z`));
+        const [{ ref }] = await admin`UPDATE prestation SET reference = ${`RRRR${i + 2}${note}${id === c.fatim ? "F" : "A"}X`} WHERE id = ${w.valeur} RETURNING reference AS ref`;
+        expect((await svc.noterCoiffeuse(ref, id, note, "")).ok).toBe(true);
+      }
+    }
+    const pub = await svc.salonPublic("salon-a");
+    expect(pub?.coiffeuses.map((x) => x.nom)).toEqual(["Fatim", "Clarisse", "Awa"]);
+    expect(pub?.coiffeuses[0]).toMatchObject({ note: "5,0", nbAvis: 3 });
+  });
+
+  it("photo d'une coiffeuse : ajout, remplacement, retrait ; visible seulement si elle fait partie de l'équipe", async () => {
+    const jpeg = "data:image/jpeg;base64," + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(3000, 9)]).toString("base64");
+    expect(await svc.photoCoiffeuse(c.awa)).toBeNull();
+    await expect(svc.modifierCoiffeuse(secA, c.awa, { nom: "Awa", joursConge: [1], actif: true, categorieIds: [], photo: jpeg })).rejects.toThrow(/non autorisée/);
+    expect((await svc.modifierCoiffeuse(A, c.awa, { nom: "Awa", joursConge: [1], actif: true, categorieIds: [], photo: jpeg })).ok).toBe(true);
+    expect((await svc.photoCoiffeuse(c.awa))?.type).toBe("image/jpeg");
+    expect((await svc.salonPublic("salon-a"))?.coiffeuses.find((x) => x.id === c.awa)?.photoUrl).toMatch(new RegExp(`^/equipe/${c.awa}/photo\\?v=`));
+    // Sans le champ photo, on garde l'ancienne
+    await svc.modifierCoiffeuse(A, c.awa, { nom: "Awa K.", joursConge: [1], actif: true, categorieIds: [] });
+    expect(await svc.photoCoiffeuse(c.awa)).not.toBeNull();
+    // Format invalide refusé
+    const svg = "data:image/svg+xml;base64," + Buffer.from("<svg onload=alert(1)>" + "x".repeat(2000)).toString("base64");
+    expect(await svc.modifierCoiffeuse(A, c.awa, { nom: "Awa", joursConge: [1], actif: true, categorieIds: [], photo: svg })).toMatchObject({ ok: false });
+    // Une ancienne coiffeuse n'est plus affichée
+    await svc.modifierCoiffeuse(A, c.awa, { nom: "Awa", joursConge: [1], actif: false, categorieIds: [] });
+    expect(await svc.photoCoiffeuse(c.awa)).toBeNull();
+    // Retrait
+    await svc.modifierCoiffeuse(A, c.awa, { nom: "Awa", joursConge: [1], actif: true, categorieIds: [], photo: null });
+    expect(await svc.photoCoiffeuse(c.awa)).toBeNull();
+    // Ajout avec photo dès la création
+    const nouvelle = await svc.ajouterCoiffeuse(A, { nom: "Safia", joursConge: [], categorieIds: [], photo: jpeg });
+    if (!nouvelle.ok) throw new Error(nouvelle.erreur);
+    expect(await svc.photoCoiffeuse(nouvelle.valeur)).not.toBeNull();
+  });
+
+  it("services ongles : la gérante crée manucure et pédicure, classées dans leur famille", async () => {
+    expect(await svc.ajouterCategorie(A, "Manucure", "ongles")).toMatchObject({ ok: true });
+    expect(await svc.ajouterCategorie(A, "Pédicure", "ongles")).toMatchObject({ ok: true });
+    expect(await svc.ajouterCategorie(A, "Vernis", "autre" as never)).toEqual({ ok: false, erreur: "Famille de service inconnue." });
+    const pub = await svc.salonPublic("salon-a");
+    expect(pub?.categories.map((x) => `${x.famille}:${x.nom}`)).toEqual(["coiffure:Tissage", "coiffure:Tresses", "ongles:Manucure", "ongles:Pédicure"]);
+    // Une demande de manucure se choisit comme un autre type
+    const manucure = pub!.categories.find((x) => x.nom === "Manucure")!;
+    await svc.modifierCoiffeuse(A, c.fatim, { nom: "Fatim", joursConge: [1], actif: true, categorieIds: [manucure.id] });
+    const d = await svc.creerDemande("salon-a", demande({ categorieId: manucure.id, jour: "2026-10-13", coiffeuseSouhaitee: c.fatim }), NOW);
+    expect(d.ok).toBe(true);
+    // Awa ne fait pas la manucure
+    expect(await svc.creerDemande("salon-a", demande({ categorieId: manucure.id, jour: "2026-10-14", coiffeuseSouhaitee: c.awa, clientTel: "70 66 66 66" }), NOW)).toMatchObject({ ok: false });
+  });
+
+  it("vidéos : la gérante ajoute et retire ; seules les vidéos actives sont publiques", async () => {
+    const m = await svc.ajouterModele(A, modele());
+    if (!m.ok) throw new Error(m.erreur);
+    const url = "https://abc123.public.blob.vercel-storage.com/videos/nattes-x1.mp4";
+    await expect(svc.ajouterVideo(secA, { titre: "Nattes", url, modeleId: null })).rejects.toThrow(/non autorisée/);
+    const v = await svc.ajouterVideo(A, { titre: "Nattes collées", url, modeleId: m.valeur });
+    if (!v.ok) throw new Error(v.erreur);
+    expect((await svc.salonPublic("salon-a"))?.videos).toEqual([{ id: v.valeur, titre: "Nattes collées", url, modeleId: m.valeur, actif: true }]);
+    // Refus : adresse non sécurisée, titre trop court, modèle d'un autre salon
+    expect(await svc.ajouterVideo(A, { titre: "Nattes", url: "http://x.fr/v.mp4", modeleId: null })).toMatchObject({ ok: false, erreur: expect.stringMatching(/https/) });
+    expect(await svc.ajouterVideo(A, { titre: "N", url, modeleId: null })).toMatchObject({ ok: false });
+    const mb = await svc.ajouterModele(B, modele({ categorieId: c.tressesB }));
+    if (!mb.ok) throw new Error(mb.erreur);
+    expect(await svc.ajouterVideo(A, { titre: "Autre salon", url, modeleId: mb.valeur })).toEqual({ ok: false, erreur: "Modèle inconnu." });
+    // Retrait : disparaît du public, reste dans la liste de la gérante
+    expect((await svc.modifierVideo(A, v.valeur, { titre: "Nattes collées", modeleId: m.valeur, actif: false })).ok).toBe(true);
+    expect((await svc.salonPublic("salon-a"))?.videos).toEqual([]);
+    expect((await svc.listerVideos(A)).map((x) => x.actif)).toEqual([false]);
+    expect(await svc.listerVideos(B)).toEqual([]);
+    expect(await svc.modifierVideo(B, v.valeur, { titre: "Piratée", modeleId: null, actif: true })).toEqual({ ok: false, erreur: "Vidéo inconnue." });
+  });
+
+  it("coordonnées du salon : renvoyées à la page publique", async () => {
+    await admin`UPDATE salon SET telephone = '+226 64 15 00 20', email = 'salon@exemple.bf', adresse = '1200 logements', horaires = 'Tous les jours, de 6 h 30 à 23 h', carte_url = 'https://www.google.com/maps?q=12.37,-1.50' WHERE slug = 'salon-a'`;
+    expect(await svc.salonPublic("salon-a")).toMatchObject({
+      telephone: "+226 64 15 00 20",
+      email: "salon@exemple.bf",
+      adresse: "1200 logements",
+      horaires: "Tous les jours, de 6 h 30 à 23 h",
+      carteUrl: "https://www.google.com/maps?q=12.37,-1.50",
+    });
   });
 });

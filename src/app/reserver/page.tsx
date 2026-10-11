@@ -29,5 +29,6 @@ async function Donnees({ searchParams }: { searchParams: PageProps<"/reserver">[
   if (!salon) return <p className="mt-6">Les demandes en ligne ne sont pas encore ouvertes.</p>;
   const type = typeof sp.type === "string" && salon.categories.some((c) => c.id === sp.type) ? sp.type : "";
   const modele = typeof sp.modele === "string" && salon.modeles.some((m) => m.id === sp.modele) ? sp.modele : "";
-  return <FormulaireDemande salon={salon} aujourdhui={todayIso()} typeInitial={type} modeleInitial={modele} />;
+  const coiffeuse = typeof sp.coiffeuse === "string" && salon.coiffeuses.some((c) => c.id === sp.coiffeuse) ? sp.coiffeuse : "";
+  return <FormulaireDemande salon={salon} aujourdhui={todayIso()} typeInitial={type} modeleInitial={modele} coiffeuseInitiale={coiffeuse} />;
 }

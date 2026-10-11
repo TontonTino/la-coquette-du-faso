@@ -16,6 +16,11 @@ export interface Coiffeuse {
   actif: boolean;
   /** Types de coiffure qu'elle sait faire (BR-009). */
   categorieIds: string[];
+  /** Photo de la coiffeuse (les clientes ne connaissent pas les noms), ou null. */
+  photoUrl: string | null;
+  /** Moyenne des notes de 1 à 5 (null s'il n'y a aucun avis) et nombre d'avis. */
+  moyenne: number | null;
+  nbAvis: number;
 }
 
 /** Modèle du catalogue : une photo de coiffure, avec prix et durée indicatifs (FR-C01). */
@@ -31,10 +36,23 @@ export interface Modele {
   actif: boolean;
 }
 
-/** Type (famille) de coiffure défini par la gérante : tresses, nattes collées, tissage… */
+/** Grande famille de services du salon. */
+export type Famille = "coiffure" | "ongles";
+
+/** Type de service défini par la gérante : tresses, nattes collées, tissage, manucure, pédicure… */
 export interface Categorie {
   id: string;
   nom: string;
+  famille: Famille;
+}
+
+/** Vidéo courte du salon (volume, couleur, qualité d'une coiffure), liée si possible à un modèle du catalogue. */
+export interface Video {
+  id: string;
+  titre: string;
+  url: string;
+  modeleId: string | null;
+  actif: boolean;
 }
 
 export interface Prestation {

@@ -59,10 +59,10 @@ const TEL = `7${String(Date.now()).slice(-7)}`;
 let reference = "";
 let coiffeuseSouhaitee = "";
 
-await verifier("Accueil public : présentation et types de coiffure", async () => {
+await verifier("Accueil public : présentation et services", async () => {
   await cliente.goto(`${BASE}/`);
   await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().waitFor();
-  await cliente.getByRole("heading", { name: "Nos coiffures" }).waitFor();
+  await cliente.getByRole("heading", { name: "Nos services" }).waitFor();
   await largeurOk(cliente, "accueil");
   await capture(cliente, "01-accueil");
 });
@@ -81,7 +81,7 @@ await verifier("La cliente envoie sa demande (FR-B01, FR-B02)", async () => {
   await cliente.getByRole("button", { name: /^Matin/ }).click();
   const groupe = cliente.getByRole("group", { name: "Coiffeuse souhaitée" });
   const premiere = groupe.getByRole("button").nth(1);
-  coiffeuseSouhaitee = (await premiere.innerText()).trim();
+  coiffeuseSouhaitee = (await premiere.getAttribute("data-nom")).trim();
   await premiere.click();
   await cliente.getByLabel(/^Votre nom/).fill(NOM);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
@@ -194,7 +194,7 @@ if (PHOTO) {
     await secretaire.locator('input[type="file"]').setInputFiles(PHOTO);
     await secretaire.getByAltText("Aperçu du modèle").waitFor();
     await secretaire.getByLabel("Nom du modèle").fill(`Nattes et vanilles ${SUFFIXE}`);
-    await secretaire.getByRole("group", { name: "Type de coiffure" }).getByRole("button", { name: "Tresses", exact: true }).click();
+    await secretaire.getByRole("group", { name: "Type de service" }).getByRole("button", { name: "Tresses", exact: true }).click();
     await secretaire.getByLabel("Prix min. (FCFA)").fill("5000");
     await secretaire.getByLabel("Prix max. (FCFA)").fill("12000");
     await secretaire.getByLabel("Durée min.").selectOption("180");

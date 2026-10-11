@@ -194,7 +194,8 @@ await verifier("Bilan du soir de la gérante (FR-013)", async () => {
   await seConnecter("gerante", MDP_GERANTE);
   await page.getByRole("link", { name: "Bilan" }).click();
   await page.waitForURL(/\/salon\/bilan/);
-  await page.getByText(CLIENTE_SANS, { exact: true }).waitFor();
+  // Next.js garde l'écran précédent (caché) : on ne cherche que dans la page visible.
+  await page.locator("main:visible").getByText(CLIENTE_SANS, { exact: true }).first().waitFor();
   const t = await texte();
   if (!/12\s000\sFCFA/.test(t)) throw new Error("12 000 FCFA introuvable dans le bilan");
   await pasDeDefilementHorizontal("bilan");

@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Champ, Choix, classeInput } from "@/app/salon/ui";
 import { Button } from "@/components/ui/Button";
+import { NoteCoiffeuse, PhotoCoiffeuse } from "@/components/public/Equipe";
 import { IconCheck, IconInfini, IconSun, IconSunrise, IconSunset } from "@/components/ui/icons";
 import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
+import type { Famille } from "@/lib/salon/types";
 import { addDays, capitalize, dateChip, formatDateMedium, weekday } from "@/lib/time";
 import type { SalonPublic } from "@/server/salon/service";
 import { envoyerDemandeAction } from "./actions";
@@ -16,6 +18,11 @@ const ICONES_MOMENT: Record<string, ReactNode> = {
   fin_journee: <IconSunset />,
   "": <IconInfini />,
 };
+
+const FAMILLES: { valeur: Famille; label: string }[] = [
+  { valeur: "coiffure", label: "Coiffure" },
+  { valeur: "ongles", label: "Ongles" },
+];
 
 /** Titre d'une étape du formulaire : un numéro, car c'est un parcours dans l'ordre. */
 function Etape({ n, titre, aide, children }: { n: number; titre: string; aide?: string; children: ReactNode }) {
@@ -41,11 +48,13 @@ export function FormulaireDemande({
   aujourdhui,
   typeInitial,
   modeleInitial,
+  coiffeuseInitiale,
 }: {
   salon: SalonPublic;
   aujourdhui: string;
   typeInitial: string;
   modeleInitial: string;
+  coiffeuseInitiale: string;
 }) {
   const router = useRouter();
   const rangee = useRef<HTMLDivElement>(null);
@@ -61,9 +70,15 @@ export function FormulaireDemande({
   const modeleChoisi = salon.modeles.find((m) => m.id === modele) ?? null;
   // Le type d'un modèle choisi sur photo prime (il sert à proposer les bonnes coiffeuses).
   const type = modeleChoisi ? (modeleChoisi.categorieId ?? "") : typeChoisi;
+  // Familles de services proposées (coiffure, ongles) : l'onglet n'apparaît que s'il y en a plusieurs.
+  const familleDe = (categorieId: string | null): Famille => salon.categories.find((c) => c.id === categorieId)?.famille ?? "coiffure";
+  const famillesPresentes = FAMILLES.filter((f) => salon.categories.some((c) => c.famille === f.valeur));
+  const [familleChoisie, setFamille] = useState<Famille>(familleDe(modeleChoisi?.categorieId ?? (typeInitial || null)));
+  const famille = type || modeleChoisi ? familleDe(type || null) : familleChoisie;
+  const typesVisibles = salon.categories.filter((c) => c.famille === famille);
   const [jour, setJour] = useState(aujourdhui);
   const [moment, setMoment] = useState<string>("");
-  const [coiffeuse, setCoiffeuse] = useState("");
+  const [coiffeuse, setCoiffeuse] = useState(coiffeuseInitiale);
   const [nom, setNom] = useState("");
   const [tel, setTel] = useState("");
   const [remarque, setRemarque] = useState("");
@@ -113,19 +128,33 @@ export function FormulaireDemande({
   };
 
   const dateMax = addDays(aujourdhui, JOURS_RESERVABLES);
-  const modelesVisibles = type ? salon.modeles.filter((m) => m.categorieId === type) : salon.modeles;
+  const modelesVisibles = type ? salon.modeles.filter((m) => m.categorieId === type) : salon.modeles.filter((m) => familleDe(m.categorieId) === famille);
   let n = 0;
 
   return (
     <div className="mt-4">
       <Etape
         n={++n}
-        titre="Quelle coiffure ?"
+        titre={famillesPresentes.length > 1 ? "Quel service ?" : "Quelle coiffure ?"}
         aide={salon.modeles.length ? "Choisissez le type, puis un modèle en photo si vous voulez." : undefined}
       >
+        {famillesPresentes.length > 1 && (
+          <div className="mb-3">
+            <Choix
+              libelle="Famille de service"
+              options={famillesPresentes.map((f) => ({ valeur: f.valeur, label: f.label }))}
+              valeur={famille}
+              onChange={(f) => {
+                setFamille(f);
+                setType("");
+                setModele("");
+              }}
+            />
+          </div>
+        )}
         <Choix
-          libelle="Type de coiffure"
-          options={[...salon.categories.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
+          libelle="Type de service"
+          options={[...typesVisibles.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
           valeur={type}
           onChange={(v) => {
             setType(v);
@@ -243,13 +272,45 @@ export function FormulaireDemande({
         </div>
       </Etape>
 
-      <Etape n={++n} titre="Une coiffeuse en particulier ?" aide="Seules celles qui font cette coiffure et travaillent ce jour-là sont proposées.">
-        <Choix
-          libelle="Coiffeuse souhaitée"
-          options={[{ valeur: "", label: "Peu importe" }, ...coiffeusesPossibles.map((c) => ({ valeur: c.id, label: c.nom }))]}
-          valeur={coiffeuseValide}
-          onChange={setCoiffeuse}
-        />
+      <Etape
+        n={++n}
+        titre={famille === "ongles" ? "Une personne en particulier ?" : "Une coiffeuse en particulier ?"}
+        aide="Les mieux notées sont en premier. Seules celles qui font ce service et travaillent ce jour-là sont proposées."
+      >
+        <div role="group" aria-label="Coiffeuse souhaitée" className="defile-x -mx-4 gap-3 px-4 pb-1">
+          {[{ id: "", nom: "Peu importe", photoUrl: null, note: null, nbAvis: 0 }, ...coiffeusesPossibles].map((c) => {
+            const on = c.id === coiffeuseValide;
+            return (
+              <button
+                key={c.id || "peu-importe"}
+                type="button"
+                aria-pressed={on}
+                data-nom={c.nom}
+                onClick={() => setCoiffeuse(c.id)}
+                className="group flex w-[5.25rem] flex-col items-center gap-1.5 text-center"
+              >
+                <span
+                  className={`relative block size-[4.5rem] overflow-hidden rounded-full transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : "ring-1 ring-trait"}`}
+                >
+                  {c.id ? (
+                    <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="size-full text-[1.6rem]" />
+                  ) : (
+                    <span className={`flex size-full items-center justify-center ${on ? "bg-noir text-or" : "bg-or-pale text-or-fonce"}`} aria-hidden>
+                      <IconInfini width={28} height={28} />
+                    </span>
+                  )}
+                  {on && c.id && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-noir/45 text-or" aria-hidden>
+                      <IconCheck width={26} height={26} strokeWidth={2.4} />
+                    </span>
+                  )}
+                </span>
+                <span className={`text-xs leading-tight font-semibold ${on ? "text-or-fonce" : ""}`}>{c.nom}</span>
+                {c.id && <NoteCoiffeuse note={c.note} nbAvis={c.nbAvis} />}
+              </button>
+            );
+          })}
+        </div>
       </Etape>
 
       <Etape n={++n} titre="Vos coordonnées">

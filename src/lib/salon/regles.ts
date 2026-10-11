@@ -117,10 +117,20 @@ export const STATUTS_OCCUPANTS: Statut[] = ["prevue", "en_attente", "en_cours"];
 
 /* ---------------- Demandes en ligne (phase B) ---------------- */
 
+/** Le salon est ouvert tous les jours de 6 h 30 à 23 h, avec deux équipes qui se relaient. */
+export const OUVERTURE_MIN = 6 * 60 + 30;
+/** Dernière heure de début proposée : 22 h 30, pour une prestation d'au moins 30 min avant la fermeture à 23 h. */
+export const DERNIER_DEBUT_MIN = 22 * 60 + 30;
+/** Heures proposées à la secrétaire, par pas de 15 minutes, de l'ouverture au dernier départ. */
+export const HEURES_SALON: string[] = Array.from({ length: (DERNIER_DEBUT_MIN - OUVERTURE_MIN) / 15 + 1 }, (_, i) => {
+  const m = OUVERTURE_MIN + i * 15;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+});
+
 export const MOMENTS: { valeur: Moment; label: string; plage: string }[] = [
-  { valeur: "matin", label: "Matin", plage: "avant 12 h" },
+  { valeur: "matin", label: "Matin", plage: "dès 6 h 30, avant le travail" },
   { valeur: "apres_midi", label: "Après-midi", plage: "12 h – 16 h" },
-  { valeur: "fin_journee", label: "Fin de journée", plage: "après 16 h" },
+  { valeur: "fin_journee", label: "À la descente", plage: "après le travail, jusqu'à 23 h" },
 ];
 
 export const JOURS_RESERVABLES = 60;
@@ -194,4 +204,52 @@ export function fourchetteDuree(min: number | null, max: number | null): string 
   if (min !== null) return `au moins ${duree(min)}`;
   if (max !== null) return `jusqu'à ${duree(max)}`;
   return "";
+}
+
+/* ---------------- Avis des clientes (notes sur 5 étoiles) ---------------- */
+
+/** Une moyenne n'est affichée qu'à partir de 3 avis : un seul avis ne dit pas grand-chose. */
+export const AVIS_MIN_AFFICHES = 3;
+
+export function verifierAvis(note: number, commentaire: string): string | null {
+  if (!Number.isInteger(note) || note < 1 || note > 5) return "Choisissez une note de 1 à 5 étoiles.";
+  if (commentaire.length > 300) return "Le commentaire ne doit pas dépasser 300 caractères.";
+  return null;
+}
+
+/**
+ * Score de classement : moyenne « prudente » qui tient compte du nombre d'avis.
+ * Une coiffeuse avec un seul 5/5 ne passe pas devant une autre qui a 40 avis à 4,8 ;
+ * une nouvelle coiffeuse démarre au milieu du classement (4/5 virtuel, pesant 5 avis).
+ */
+export function scoreAvis(moyenne: number | null, nbAvis: number): number {
+  const POIDS = 5;
+  const BASE = 4;
+  return ((moyenne ?? 0) * nbAvis + BASE * POIDS) / (nbAvis + POIDS);
+}
+
+/** Les mieux notées d'abord, puis l'ordre alphabétique (stable et prévisible). */
+export function trierParNote<T extends { nom: string; moyenne: number | null; nbAvis: number }>(liste: T[]): T[] {
+  return [...liste].sort((a, b) => scoreAvis(b.moyenne, b.nbAvis) - scoreAvis(a.moyenne, a.nbAvis) || a.nom.localeCompare(b.nom, "fr"));
+}
+
+/** « 4,8 » (virgule française), ou null tant qu'il y a moins de 3 avis. */
+export function noteAffichee(moyenne: number | null, nbAvis: number): string | null {
+  if (moyenne === null || nbAvis < AVIS_MIN_AFFICHES) return null;
+  return (Math.round(moyenne * 10) / 10).toFixed(1).replace(".", ",");
+}
+
+/* ---------------- Vidéos courtes ---------------- */
+
+/** Adresse d'une vidéo : sécurisée (https), sans espace, de longueur raisonnable. */
+export function verifierVideo(titre: string, url: string): string | null {
+  const t = titre.trim();
+  if (t.length < 2 || t.length > 60) return "Le titre de la vidéo doit faire entre 2 et 60 caractères.";
+  if (url.length > 500 || /\s/.test(url)) return "Adresse de la vidéo invalide.";
+  try {
+    if (new URL(url).protocol !== "https:") return "L'adresse de la vidéo doit commencer par https://.";
+  } catch {
+    return "Adresse de la vidéo invalide.";
+  }
+  return null;
 }

@@ -6,10 +6,11 @@ import { IconImage } from "@/components/ui/icons";
 import { useToast } from "@/components/ui/Toast";
 import { reduireImage } from "@/lib/salon/image-client";
 import { DUREES_RAPIDES, fourchetteDuree, fourchettePrix } from "@/lib/salon/regles";
-import type { Categorie, Modele } from "@/lib/salon/types";
+import type { Categorie, Modele, Video } from "@/lib/salon/types";
 import { formatDuration } from "@/lib/time";
 import { ajouterModeleAction, modifierModeleAction } from "../actions";
 import { Carte, Champ, classeInput, Section, Vide } from "../ui";
+import { GestionVideos } from "./GestionVideos";
 
 interface Brouillon {
   id: string | null;
@@ -40,7 +41,7 @@ const versBrouillon = (m: Modele): Brouillon => ({
 const nombre = (v: string) => (v.trim() === "" ? null : Number.parseInt(v.replace(/\D/g, ""), 10));
 
 /** FR-C02, FR-C03 : la gérante gère le catalogue de modèles en photo, depuis son téléphone. */
-export function GestionModeles({ modeles, categories }: { modeles: Modele[]; categories: Categorie[] }) {
+export function GestionModeles({ modeles, categories, videos, stockageVideo }: { modeles: Modele[]; categories: Categorie[]; videos: Video[]; stockageVideo: boolean }) {
   const toast = useToast();
   const [enCours, start] = useTransition();
   const [b, setB] = useState<Brouillon | null>(null);
@@ -112,7 +113,7 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
           <Champ label="Nom du modèle">
             <input className={classeInput} value={b.nom} onChange={(e) => setB({ ...b, nom: e.target.value })} placeholder="Ex. : Nattes collées et vanilles" maxLength={60} />
           </Champ>
-          <Champ groupe label="Type de coiffure" aide="Sert à proposer les coiffeuses qui savent le faire.">
+          <Champ groupe label="Type de service" aide="Sert à proposer les coiffeuses qui savent le faire.">
             <div className="flex flex-wrap gap-2">
               {[...categories.map((c) => ({ v: c.id, l: c.nom })), { v: "", l: "Aucun" }].map((o) => (
                 <button
@@ -206,6 +207,7 @@ export function GestionModeles({ modeles, categories }: { modeles: Modele[]; cat
           {grille(retires)}
         </Section>
       )}
+      <GestionVideos videos={videos} modeles={modeles} stockageActif={stockageVideo} />
     </div>
   );
 }

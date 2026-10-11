@@ -22,9 +22,13 @@ import {
   verifierFourchettes,
   typeImage,
   PHOTO_TAILLE_MAX,
+  noteAffichee,
+  trierParNote,
+  verifierAvis,
+  verifierVideo,
 } from "@/lib/salon/regles";
 import { randomBytes } from "node:crypto";
-import type { Categorie, Coiffeuse, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut } from "@/lib/salon/types";
+import type { Categorie, Coiffeuse, Famille, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut, Video } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
 import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
 
@@ -115,20 +119,37 @@ function versPrestation(l: LignePrestation): Prestation {
   };
 }
 
+/** Adresse de la photo d'une coiffeuse ; le paramètre v change à chaque modification (cache navigateur sûr). */
+const urlPhotoCoiffeuse = (id: string, maj: Date | null) => (maj ? `/equipe/${id}/photo?v=${maj.getTime().toString(36)}` : null);
+
 async function lireCoiffeuses(ctx: Ctx): Promise<Coiffeuse[]> {
-  const rows = await db()<{ id: string; nom: string; jours_conge: number[]; actif: boolean; categorie_ids: string[] }[]>`
-    SELECT c.id, c.nom, c.jours_conge, c.actif,
-           COALESCE(array_agg(k.categorie_id) FILTER (WHERE k.categorie_id IS NOT NULL), '{}') AS categorie_ids
+  const rows = await db()<
+    { id: string; nom: string; jours_conge: number[]; actif: boolean; categorie_ids: string[]; photo_maj: Date | null;
+      a_photo: boolean; moyenne: number | null; nb_avis: number }[]
+  >`
+    SELECT c.id, c.nom, c.jours_conge, c.actif, c.photo_maj, (c.photo IS NOT NULL) AS a_photo,
+           COALESCE(array_agg(k.categorie_id) FILTER (WHERE k.categorie_id IS NOT NULL), '{}') AS categorie_ids,
+           (SELECT avg(v.note)::float8 FROM avis v WHERE v.coiffeuse_id = c.id) AS moyenne,
+           (SELECT count(*)::int FROM avis v WHERE v.coiffeuse_id = c.id) AS nb_avis
     FROM coiffeuse c LEFT JOIN competence k ON k.coiffeuse_id = c.id AND k.salon_id = c.salon_id
     WHERE c.salon_id = ${ctx.salonId}
     GROUP BY c.id ORDER BY c.actif DESC, c.nom`;
-  return rows.map((c) => ({ id: c.id, nom: c.nom, joursConge: c.jours_conge, actif: c.actif, categorieIds: c.categorie_ids }));
+  return rows.map((c) => ({
+    id: c.id,
+    nom: c.nom,
+    joursConge: c.jours_conge,
+    actif: c.actif,
+    categorieIds: c.categorie_ids,
+    photoUrl: c.a_photo ? urlPhotoCoiffeuse(c.id, c.photo_maj) : null,
+    moyenne: c.moyenne,
+    nbAvis: c.nb_avis,
+  }));
 }
 
 async function lireCategories(ctx: Ctx): Promise<Categorie[]> {
-  const rows = await db()<{ id: string; nom: string }[]>`
-    SELECT id, nom FROM categorie WHERE salon_id = ${ctx.salonId} AND actif ORDER BY nom`;
-  return rows.map((r) => ({ id: r.id, nom: r.nom }));
+  const rows = await db()<{ id: string; nom: string; famille: Famille }[]>`
+    SELECT id, nom, famille FROM categorie WHERE salon_id = ${ctx.salonId} AND actif ORDER BY famille, nom`;
+  return rows.map((r) => ({ id: r.id, nom: r.nom, famille: r.famille }));
 }
 
 async function donneesDuJour(ctx: Ctx, jour: Jour) {
@@ -201,12 +222,12 @@ export async function coiffeusesLibres(
 /* Aides d'écriture                                                    */
 /* ------------------------------------------------------------------ */
 
-/** Vérifie que le type de coiffure appartient au salon ; renvoie son nom. */
+/** Vérifie que le type de service appartient au salon ; renvoie son nom. */
 async function verifierCategorie(tx: Tx, ctx: Ctx, categorieId: string | null): Promise<string | null> {
   if (categorieId === null) return null;
-  if (!estUuid(categorieId)) throw new Refus("Type de coiffure inconnu.");
+  if (!estUuid(categorieId)) throw new Refus("Type de service inconnu.");
   const [cat] = await tx<{ nom: string }[]>`SELECT nom FROM categorie WHERE id = ${categorieId} AND salon_id = ${ctx.salonId}`;
-  if (!cat) throw new Refus("Type de coiffure inconnu.");
+  if (!cat) throw new Refus("Type de service inconnu.");
   return cat.nom;
 }
 
@@ -226,7 +247,7 @@ async function verifierCoiffeuses(tx: Tx, ctx: Ctx, ids: string[], jour: Jour, c
     if (!c.actif) throw new Refus(`${c.nom} ne fait plus partie de l'équipe.`);
     if (c.jours_conge.includes(weekday(jour))) throw new Refus(`${c.nom} est en congé ce jour-là.`);
     if (c.absente) throw new Refus(`${c.nom} est absente ce jour-là.`);
-    if (!c.competente) throw new Refus(`${c.nom} ne fait pas ce type de coiffure (${nomCategorie}).`);
+    if (!c.competente) throw new Refus(`${c.nom} ne fait pas ce service (${nomCategorie}).`);
   }
 }
 
@@ -378,8 +399,9 @@ export async function terminer(ctx: Ctx, id: string, s: { prix: number; paiement
   return transaction(async (tx) => {
     await charger(tx, ctx, id, "terminer");
     await tx`UPDATE prestation SET statut = 'terminee', prix_paye = ${s.prix}, paiement = ${s.paiement}, maj_le = now() WHERE id = ${id}`;
+    // Le créneau est libéré (active = false) ; a_fait garde la trace de celles qui ont fait la coiffure (avis).
     await tx`UPDATE affectation
-             SET active = false,
+             SET a_fait = active, active = false,
                  plage = tstzrange(lower(plage), GREATEST(lower(plage) + interval '1 minute', LEAST(upper(plage), ${now}::timestamptz)), '[)')
              WHERE prestation_id = ${id}`;
     return undefined;
@@ -436,18 +458,19 @@ export async function listerEquipe(ctx: Ctx): Promise<{ coiffeuses: Coiffeuse[];
   return { coiffeuses, categories };
 }
 
-/** FR-015 : la gérante crée un type de coiffure. */
-export async function ajouterCategorie(ctx: Ctx, nom: string): Promise<R<string>> {
+/** FR-015 : la gérante crée un type de service (coiffure, ou ongles : manucure, pédicure…). */
+export async function ajouterCategorie(ctx: Ctx, nom: string, famille: Famille = "coiffure"): Promise<R<string>> {
   autoriser(ctx, GERANTE);
   const n = nom.trim();
-  if (n.length < 2 || n.length > 40) return ko("Le type de coiffure doit faire entre 2 et 40 caractères.");
+  if (n.length < 2 || n.length > 40) return ko("Le type de service doit faire entre 2 et 40 caractères.");
+  if (famille !== "coiffure" && famille !== "ongles") return ko("Famille de service inconnue.");
   try {
     return await transaction(async (tx) => {
-      const [c] = await tx<{ id: string }[]>`INSERT INTO categorie (salon_id, nom) VALUES (${ctx.salonId}, ${n}) RETURNING id`;
+      const [c] = await tx<{ id: string }[]>`INSERT INTO categorie (salon_id, nom, famille) VALUES (${ctx.salonId}, ${n}, ${famille}) RETURNING id`;
       return c.id;
     });
   } catch (e) {
-    if (codePg(e) === "23505") return ko("Ce type de coiffure existe déjà.");
+    if (codePg(e) === "23505") return ko("Ce type de service existe déjà.");
     throw e;
   }
 }
@@ -457,7 +480,7 @@ async function ecrireCompetences(tx: Tx, ctx: Ctx, coiffeuseId: string, categori
   if (!categorieIds.every(estUuid) || new Set(categorieIds).size !== categorieIds.length) throw new Refus("Types de coiffure invalides.");
   if (categorieIds.length) {
     const ok = await tx`SELECT id FROM categorie WHERE salon_id = ${ctx.salonId} AND id IN ${tx(categorieIds)}`;
-    if (ok.length !== categorieIds.length) throw new Refus("Type de coiffure inconnu.");
+    if (ok.length !== categorieIds.length) throw new Refus("Type de service inconnu.");
   }
   await tx`DELETE FROM competence WHERE coiffeuse_id = ${coiffeuseId} AND salon_id = ${ctx.salonId}`;
   for (const cat of categorieIds) {
@@ -474,33 +497,56 @@ function verifierFiche(nom: string, joursConge: number[]): string | null {
 }
 
 /** FR-001 / FR-002 */
-export async function ajouterCoiffeuse(ctx: Ctx, s: { nom: string; joursConge: number[]; categorieIds: string[] }): Promise<R<string>> {
+export async function ajouterCoiffeuse(
+  ctx: Ctx,
+  s: { nom: string; joursConge: number[]; categorieIds: string[]; photo?: string | null },
+): Promise<R<string>> {
   autoriser(ctx, GERANTE);
   const erreur = verifierFiche(s.nom, s.joursConge);
   if (erreur) return ko(erreur);
+  const photo = s.photo ? decoderPhoto(s.photo) : null;
+  if (photo && "erreur" in photo) return ko(photo.erreur);
   return transaction(async (tx) => {
     const [c] = await tx<{ id: string }[]>`
-      INSERT INTO coiffeuse (salon_id, nom, jours_conge) VALUES (${ctx.salonId}, ${s.nom.trim()}, ${s.joursConge}) RETURNING id`;
+      INSERT INTO coiffeuse (salon_id, nom, jours_conge, photo, photo_type, photo_maj)
+      VALUES (${ctx.salonId}, ${s.nom.trim()}, ${s.joursConge}, ${photo ? photo.octets : null}, ${photo ? photo.type : null}, ${photo ? new Date() : null})
+      RETURNING id`;
     await ecrireCompetences(tx, ctx, c.id, s.categorieIds);
     return c.id;
   });
 }
 
+/** `photo` : absent = on garde l'ancienne ; texte (base64) = nouvelle photo ; null = on la retire. */
 export async function modifierCoiffeuse(
   ctx: Ctx,
   id: string,
-  s: { nom: string; joursConge: number[]; actif: boolean; categorieIds: string[] },
+  s: { nom: string; joursConge: number[]; actif: boolean; categorieIds: string[]; photo?: string | null },
 ): Promise<R> {
   autoriser(ctx, GERANTE);
   const erreur = !estUuid(id) ? "Coiffeuse inconnue." : verifierFiche(s.nom, s.joursConge);
   if (erreur) return ko(erreur);
+  const photo = s.photo ? decoderPhoto(s.photo) : null;
+  if (photo && "erreur" in photo) return ko(photo.erreur);
   return transaction(async (tx) => {
     const r = await tx`UPDATE coiffeuse SET nom = ${s.nom.trim()}, jours_conge = ${s.joursConge}, actif = ${s.actif}
                        WHERE id = ${id} AND salon_id = ${ctx.salonId} RETURNING id`;
     if (r.length === 0) throw new Refus("Coiffeuse inconnue.");
+    if (photo) {
+      await tx`UPDATE coiffeuse SET photo = ${photo.octets}, photo_type = ${photo.type}, photo_maj = now() WHERE id = ${id}`;
+    } else if (s.photo === null) {
+      await tx`UPDATE coiffeuse SET photo = NULL, photo_type = NULL, photo_maj = NULL WHERE id = ${id}`;
+    }
     await ecrireCompetences(tx, ctx, id, s.categorieIds);
     return undefined;
   });
+}
+
+/** Photo publique d'une coiffeuse de l'équipe (seulement si elle en fait encore partie). */
+export async function photoCoiffeuse(id: string): Promise<{ octets: Buffer; type: string } | null> {
+  if (!estUuid(id)) return null;
+  const [r] = await db()<{ photo: Buffer; photo_type: string }[]>`
+    SELECT photo, photo_type FROM coiffeuse WHERE id = ${id} AND actif AND photo IS NOT NULL`;
+  return r ? { octets: r.photo, type: r.photo_type } : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -618,32 +664,81 @@ export async function refuserDemande(ctx: Ctx, id: string, motif: string): Promi
 /* Côté clientes — pages publiques, sans connexion (FR-B01 à FR-B03)   */
 /* ------------------------------------------------------------------ */
 
+export interface CoiffeusePublique {
+  id: string;
+  nom: string;
+  categorieIds: string[];
+  joursConge: number[];
+  photoUrl: string | null;
+  /** Moyenne affichable (« 4,8 »), seulement à partir de 3 avis. */
+  note: string | null;
+  nbAvis: number;
+}
+
 export interface SalonPublic {
   nom: string;
   whatsapp: string | null;
+  telephone: string | null;
+  email: string | null;
+  adresse: string | null;
+  horaires: string | null;
+  carteUrl: string | null;
   categories: Categorie[];
-  coiffeuses: { id: string; nom: string; categorieIds: string[]; joursConge: number[] }[];
+  /** Les mieux notées d'abord. */
+  coiffeuses: CoiffeusePublique[];
   modeles: Modele[];
+  videos: Video[];
 }
 
-async function salonParSlug(slug: string): Promise<{ id: string; nom: string; whatsapp: string | null } | null> {
+interface LigneSalon {
+  id: string;
+  nom: string;
+  whatsapp: string | null;
+  telephone: string | null;
+  email: string | null;
+  adresse: string | null;
+  horaires: string | null;
+  carte_url: string | null;
+}
+
+async function salonParSlug(slug: string): Promise<LigneSalon | null> {
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) return null;
-  const [s] = await db()<{ id: string; nom: string; whatsapp: string | null }[]>`SELECT id, nom, whatsapp FROM salon WHERE slug = ${slug}`;
+  const [s] = await db()<LigneSalon[]>`
+    SELECT id, nom, whatsapp, telephone, email, adresse, horaires, carte_url FROM salon WHERE slug = ${slug}`;
   return s ?? null;
 }
 
-/** Ce qu'une cliente peut voir : types de coiffure et prénoms des coiffeuses actives. Aucune donnée personnelle de clientes. */
+/** Ce qu'une cliente peut voir : services, équipe (prénom, photo, note), vidéos. Aucune donnée personnelle de clientes. */
 export async function salonPublic(slug: string): Promise<SalonPublic | null> {
   const s = await salonParSlug(slug);
   if (!s) return null;
   const ctx: Ctx = { salonId: s.id, utilisateurId: "", role: "secretaire" };
-  const [coiffeuses, categories, modeles] = await Promise.all([lireCoiffeuses(ctx), lireCategories(ctx), lireModeles(ctx, false)]);
+  const [coiffeuses, categories, modeles, videos] = await Promise.all([
+    lireCoiffeuses(ctx),
+    lireCategories(ctx),
+    lireModeles(ctx, false),
+    lireVideos(ctx, false),
+  ]);
   return {
     nom: s.nom,
     whatsapp: s.whatsapp,
+    telephone: s.telephone,
+    email: s.email,
+    adresse: s.adresse,
+    horaires: s.horaires,
+    carteUrl: s.carte_url,
     categories,
     modeles,
-    coiffeuses: coiffeuses.filter((c) => c.actif).map((c) => ({ id: c.id, nom: c.nom, categorieIds: c.categorieIds, joursConge: c.joursConge })),
+    videos,
+    coiffeuses: trierParNote(coiffeuses.filter((c) => c.actif)).map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      categorieIds: c.categorieIds,
+      joursConge: c.joursConge,
+      photoUrl: c.photoUrl,
+      note: noteAffichee(c.moyenne, c.nbAvis),
+      nbAvis: c.nbAvis,
+    })),
   };
 }
 
@@ -691,7 +786,7 @@ export async function creerDemande(slug: string, s: SaisieDemande, now = new Dat
       WHERE salon_id = ${ctx.salonId} AND canal = 'en_ligne' AND cree_le > ${new Date(now.getTime() - 3_600_000)}`;
     if (h >= 60) throw new Refus("Beaucoup de demandes en ce moment : réessayez dans quelques minutes ou écrivez au salon sur WhatsApp.");
 
-    // Un modèle choisi sur photo donne son type de coiffure et sa durée habituelle.
+    // Un modèle choisi sur photo donne son type de service et sa durée habituelle.
     let categorieId = s.categorieId;
     let duree = 180;
     if (s.modeleId) {
@@ -732,6 +827,8 @@ export interface SuiviDemande {
   coiffeuses: string[];
   motifRefus: string | null;
   modele: { nom: string; photoUrl: string } | null;
+  /** Coiffeuses de la prestation terminée, avec la note déjà donnée par la cliente (pour les noter). */
+  aNoter: { id: string; nom: string; photoUrl: string | null; note: number | null }[];
 }
 
 /** FR-B03 : suivi par référence. Ne renvoie ni le téléphone ni le nom complet. */
@@ -739,12 +836,12 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
   if (!estReference(reference)) return null;
   const [r] = await db()<
     {
-      reference: string; salon_nom: string; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
+      prestation_id: string; reference: string; salon_nom: string; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
       souhait_moment: Moment | null; debut: Date | null; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
       m_id: string | null; m_nom: string | null; m_maj: Date | null;
     }[]
   >`
-    SELECT p.reference, s.nom AS salon_nom, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
+    SELECT p.id AS prestation_id, p.reference, s.nom AS salon_nom, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
            k.nom AS categorie, p.motif_refus, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj,
            COALESCE((SELECT array_agg(c.nom ORDER BY c.nom) FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id
                      WHERE a.prestation_id = p.id AND a.active), '{}') AS coiffeuses
@@ -752,8 +849,18 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
     JOIN salon s ON s.id = p.salon_id
     LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
     LEFT JOIN modele m ON m.id = p.modele_id AND m.salon_id = p.salon_id
-    WHERE p.reference = ${reference} AND p.canal = 'en_ligne'`;
+    WHERE p.reference = ${reference}`;
   if (!r) return null;
+  const aNoter =
+    r.statut === "terminee"
+      ? await db()<{ id: string; nom: string; photo_maj: Date | null; a_photo: boolean; note: number | null }[]>`
+          SELECT c.id, c.nom, c.photo_maj, (c.photo IS NOT NULL) AS a_photo, v.note
+          FROM affectation a
+          JOIN coiffeuse c ON c.id = a.coiffeuse_id AND c.salon_id = a.salon_id
+          LEFT JOIN avis v ON v.prestation_id = a.prestation_id AND v.coiffeuse_id = a.coiffeuse_id
+          WHERE a.prestation_id = ${r.prestation_id} AND a.a_fait
+          ORDER BY c.nom`
+      : [];
   return {
     reference: r.reference,
     salonNom: r.salon_nom,
@@ -767,6 +874,7 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
     coiffeuses: r.coiffeuses,
     motifRefus: r.motif_refus,
     modele: r.m_id ? { nom: r.m_nom!, photoUrl: urlPhoto(r.m_id, r.m_maj!) } : null,
+    aNoter: aNoter.map((c) => ({ id: c.id, nom: c.nom, photoUrl: c.a_photo ? urlPhotoCoiffeuse(c.id, c.photo_maj) : null, note: c.note })),
   };
 }
 
@@ -829,7 +937,7 @@ function decoderPhoto(b64: string): { octets: Buffer; type: string } | { erreur:
 function verifierSaisieModele(s: SaisieModele): string | null {
   const n = s.nom.trim();
   if (n.length < 2 || n.length > 60) return "Le nom du modèle doit faire entre 2 et 60 caractères.";
-  if (s.categorieId !== null && !estUuid(s.categorieId)) return "Type de coiffure inconnu.";
+  if (s.categorieId !== null && !estUuid(s.categorieId)) return "Type de service inconnu.";
   return verifierFourchettes(s);
 }
 
@@ -878,4 +986,126 @@ export async function photoModele(id: string): Promise<{ octets: Buffer; type: s
   if (!estUuid(id)) return null;
   const [r] = await db()<{ photo: Buffer; photo_type: string }[]>`SELECT photo, photo_type FROM modele WHERE id = ${id} AND actif`;
   return r ? { octets: r.photo, type: r.photo_type } : null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Avis des clientes : 1 à 5 étoiles par coiffeuse, après la prestation */
+/* ------------------------------------------------------------------ */
+
+/**
+ * La cliente note une coiffeuse de sa prestation terminée. Elle s'identifie par sa référence de suivi
+ * (secrète). Une seule note par coiffeuse et par prestation ; elle peut la corriger.
+ */
+export async function noterCoiffeuse(reference: string, coiffeuseId: string, note: number, commentaire: string): Promise<R> {
+  if (!estReference(reference) || !estUuid(coiffeuseId)) return ko("Avis impossible.");
+  const c = commentaire.trim();
+  const erreur = verifierAvis(note, c);
+  if (erreur) return ko(erreur);
+  return transaction(async (tx) => {
+    const [p] = await tx<{ id: string; salon_id: string; statut: Statut }[]>`
+      SELECT id, salon_id, statut FROM prestation WHERE reference = ${reference}`;
+    if (!p) throw new Refus("Rendez-vous introuvable.");
+    if (p.statut !== "terminee") throw new Refus("Vous pourrez noter votre coiffeuse une fois la prestation terminée.");
+    const a = await tx`SELECT 1 FROM affectation WHERE prestation_id = ${p.id} AND coiffeuse_id = ${coiffeuseId} AND a_fait`;
+    if (a.length === 0) throw new Refus("Cette coiffeuse n'a pas fait votre prestation.");
+    await tx`
+      INSERT INTO avis (prestation_id, coiffeuse_id, salon_id, note, commentaire)
+      VALUES (${p.id}, ${coiffeuseId}, ${p.salon_id}, ${note}, ${c || null})
+      ON CONFLICT (prestation_id, coiffeuse_id) DO UPDATE SET note = EXCLUDED.note, commentaire = EXCLUDED.commentaire, maj_le = now()`;
+    return undefined;
+  });
+}
+
+/**
+ * Référence de suivi d'une prestation terminée, créée à la demande pour les clientes venues au salon
+ * (sans demande en ligne) : la secrétaire peut ainsi leur envoyer le lien pour donner leur avis.
+ */
+export async function referenceAvis(ctx: Ctx, prestationId: string): Promise<R<{ reference: string; clientNom: string; clientTel: string }>> {
+  autoriser(ctx, PERSONNEL);
+  if (!estUuid(prestationId)) return ko("Prestation inconnue.");
+  return transaction(async (tx) => {
+    const [p] = await tx<{ reference: string | null; client_nom: string; client_tel: string | null; statut: Statut }[]>`
+      SELECT reference, client_nom, client_tel, statut FROM prestation WHERE id = ${prestationId} AND salon_id = ${ctx.salonId} FOR UPDATE`;
+    if (!p) throw new Refus("Prestation inconnue.");
+    if (p.statut !== "terminee") throw new Refus("Les avis se demandent une fois la prestation terminée.");
+    if (!p.client_tel) throw new Refus("Cette cliente n'a pas de numéro WhatsApp enregistré.");
+    if (p.reference) return { reference: p.reference, clientNom: p.client_nom, clientTel: p.client_tel };
+    for (let essai = 0; essai < 5; essai++) {
+      const reference = nouvelleReference((n) => randomBytes(n));
+      const r = await tx<{ reference: string }[]>`
+        UPDATE prestation SET reference = ${reference} WHERE id = ${prestationId}
+        AND NOT EXISTS (SELECT 1 FROM prestation WHERE reference = ${reference}) RETURNING reference`;
+      if (r.length) return { reference, clientNom: p.client_nom, clientTel: p.client_tel };
+    }
+    throw new Error("Impossible de générer une référence unique.");
+  });
+}
+
+export interface AvisRecent {
+  coiffeuse: string;
+  note: number;
+  commentaire: string | null;
+  jour: Jour;
+}
+
+/** La gérante lit les derniers avis, commentaires compris (les commentaires ne sont jamais publics). */
+export async function derniersAvis(ctx: Ctx, limite = 12): Promise<AvisRecent[]> {
+  autoriser(ctx, GERANTE);
+  const rows = await db()<{ nom: string; note: number; commentaire: string | null; jour: string }[]>`
+    SELECT c.nom, v.note, v.commentaire, p.jour
+    FROM avis v
+    JOIN coiffeuse c ON c.id = v.coiffeuse_id
+    JOIN prestation p ON p.id = v.prestation_id
+    WHERE v.salon_id = ${ctx.salonId}
+    ORDER BY v.maj_le DESC LIMIT ${Math.min(Math.max(limite, 1), 50)}`;
+  return rows.map((r) => ({ coiffeuse: r.nom, note: r.note, commentaire: r.commentaire, jour: r.jour }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Vidéos courtes : montrent volume, couleur et qualité d'une coiffure   */
+/* ------------------------------------------------------------------ */
+
+async function lireVideos(ctx: Ctx, inclureInactives: boolean): Promise<Video[]> {
+  const rows = await db()<{ id: string; titre: string; url: string; modele_id: string | null; actif: boolean }[]>`
+    SELECT id, titre, url, modele_id, actif FROM video
+    WHERE salon_id = ${ctx.salonId} AND (actif OR ${inclureInactives})
+    ORDER BY actif DESC, cree_le DESC`;
+  return rows.map((r) => ({ id: r.id, titre: r.titre, url: r.url, modeleId: r.modele_id, actif: r.actif }));
+}
+
+export async function listerVideos(ctx: Ctx): Promise<Video[]> {
+  autoriser(ctx, GERANTE);
+  return lireVideos(ctx, true);
+}
+
+async function verifierModeleDuSalon(tx: Tx, ctx: Ctx, modeleId: string | null) {
+  if (modeleId === null) return;
+  if (!estUuid(modeleId)) throw new Refus("Modèle inconnu.");
+  const m = await tx`SELECT 1 FROM modele WHERE id = ${modeleId} AND salon_id = ${ctx.salonId}`;
+  if (m.length === 0) throw new Refus("Modèle inconnu.");
+}
+
+export async function ajouterVideo(ctx: Ctx, s: { titre: string; url: string; modeleId: string | null }): Promise<R<string>> {
+  autoriser(ctx, GERANTE);
+  const erreur = verifierVideo(s.titre, s.url.trim());
+  if (erreur) return ko(erreur);
+  return transaction(async (tx) => {
+    await verifierModeleDuSalon(tx, ctx, s.modeleId);
+    const [v] = await tx<{ id: string }[]>`
+      INSERT INTO video (salon_id, modele_id, titre, url) VALUES (${ctx.salonId}, ${s.modeleId}, ${s.titre.trim()}, ${s.url.trim()}) RETURNING id`;
+    return v.id;
+  });
+}
+
+export async function modifierVideo(ctx: Ctx, id: string, s: { titre: string; modeleId: string | null; actif: boolean }): Promise<R> {
+  autoriser(ctx, GERANTE);
+  if (!estUuid(id)) return ko("Vidéo inconnue.");
+  const t = s.titre.trim();
+  if (t.length < 2 || t.length > 60) return ko("Le titre de la vidéo doit faire entre 2 et 60 caractères.");
+  return transaction(async (tx) => {
+    await verifierModeleDuSalon(tx, ctx, s.modeleId);
+    const r = await tx`UPDATE video SET titre = ${t}, modele_id = ${s.modeleId}, actif = ${s.actif} WHERE id = ${id} AND salon_id = ${ctx.salonId} RETURNING id`;
+    if (r.length === 0) throw new Refus("Vidéo inconnue.");
+    return undefined;
+  });
 }

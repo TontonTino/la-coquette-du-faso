@@ -38,7 +38,23 @@ function nettoyerUrl(url: string): string {
 
 // Types de coiffure et spécialités fictifs (démo) : la gérante saisira les vrais dans l'onglet Équipe.
 const DEMO_TYPES = ["Tresses", "Braids", "Nattes collées", "Tissage", "Perruque", "Défrisage & brushing"];
-const specialitesDemo = (i: number) => [DEMO_TYPES[i % 6], DEMO_TYPES[(i + 2) % 6], ...(i % 3 === 0 ? [DEMO_TYPES[(i + 4) % 6]] : [])];
+const DEMO_ONGLES = ["Manucure", "Pédicure"];
+// Une coiffeuse sur cinq fait aussi les ongles (démo).
+const specialitesDemo = (i: number) => [
+  DEMO_TYPES[i % 6],
+  DEMO_TYPES[(i + 2) % 6],
+  ...(i % 3 === 0 ? [DEMO_TYPES[(i + 4) % 6]] : []),
+  ...(i % 5 === 4 ? DEMO_ONGLES : []),
+];
+
+// Le salon pilote reçoit ses coordonnées par la migration 005 (le seed crée le salon après les migrations).
+const COORDONNEES = {
+  telephone: "+226 64 15 00 20",
+  email: "coquettedufaso64@gmail.com",
+  adresse: "1200 logements, à une minute d'Aube Nouvelle, Ouagadougou",
+  horaires: "Tous les jours, de 6 h 30 à 23 h",
+  carte_url: "https://www.google.com/maps?q=12.378299568941,-1.5094143738174",
+};
 
 const sql = postgres(nettoyerUrl(url!), { max: 1, onnotice: () => {} });
 try {
@@ -47,7 +63,9 @@ try {
     console.log("Un salon existe déjà : rien n'a été modifié.");
   } else {
     await sql.begin(async (tx) => {
-      const [salon] = await tx`INSERT INTO salon (nom, slug) VALUES ('La Coquette du Faso', 'la-coquette-du-faso') RETURNING id`;
+      const [salon] = await tx`INSERT INTO salon (nom, slug, telephone, email, adresse, horaires, carte_url)
+        VALUES ('La Coquette du Faso', 'la-coquette-du-faso', ${COORDONNEES.telephone}, ${COORDONNEES.email}, ${COORDONNEES.adresse}, ${COORDONNEES.horaires}, ${COORDONNEES.carte_url})
+        RETURNING id`;
       await tx`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES
         (${salon.id}, 'gerante', 'Gérante', 'gerante', ${await hashPassword(pwdGerante)}),
         (${salon.id}, 'secretaire', 'Secrétaire', 'secretaire', ${await hashPassword(pwdSecretaire)})`;
@@ -55,6 +73,10 @@ try {
         const typeId = new Map<string, string>();
         for (const nom of DEMO_TYPES) {
           const [t] = await tx`INSERT INTO categorie (salon_id, nom) VALUES (${salon.id}, ${nom}) RETURNING id`;
+          typeId.set(nom, t.id);
+        }
+        for (const nom of DEMO_ONGLES) {
+          const [t] = await tx`INSERT INTO categorie (salon_id, nom, famille) VALUES (${salon.id}, ${nom}, 'ongles') ON CONFLICT (salon_id, nom) DO UPDATE SET famille = 'ongles' RETURNING id`;
           typeId.set(nom, t.id);
         }
         for (const [i, [nom, conges]] of DEMO_COIFFEUSES.entries()) {
@@ -65,7 +87,7 @@ try {
         }
       }
     });
-    console.log(`✔ Salon créé, comptes « gerante » et « secretaire »${demo ? ", 6 types de coiffure et 20 coiffeuses fictives" : ""}.`);
+    console.log(`✔ Salon créé, comptes « gerante » et « secretaire »${demo ? ", 6 types de coiffure, manucure, pédicure et 20 coiffeuses fictives" : ""}.`);
   }
 } catch (error) {
   console.error("Échec :", (error as Error).message);

@@ -37,3 +37,12 @@ Symptôme : `git push` réussit, mais aucune nouvelle ligne n'apparaît dans Dep
 |---|---|
 | `DATABASE_URL` | Adresse Neon **avec** `-pooler` (une modification ne s'applique qu'au déploiement suivant) |
 | `SALON_SLUG` | Facultatif, `la-coquette-du-faso` par défaut |
+| `BLOB_READ_WRITE_TOKEN` | Facultatif. Créé automatiquement quand on ajoute un **Blob store public** (Vercel → Storage → Create → Blob → Public, puis le relier au projet). Sans lui, la gérante colle un lien https pour ses vidéos au lieu de les envoyer depuis le téléphone. |
+
+## Vidéos courtes, avis et photos de l'équipe
+
+- Vidéos : 15 à 30 s, format vertical, MP4 (H.264) de préférence, 40 Mo maximum par fichier. Le fichier n'est chargé que lorsque la vidéo doit se lancer (économie de données mobiles).
+- Plan Hobby de Vercel : 1 Go de stockage Blob et 10 Go de transfert par mois ; au-delà, passer en Pro.
+- Photos de l'équipe : stockées dans la base (800 Ko maximum), demander l'accord des coiffeuses.
+- Avis : une note de 1 à 5 par coiffeuse réellement intervenue ; la moyenne n'est affichée aux clientes qu'à partir de 3 avis ; les commentaires ne sont vus que par la gérante.
+- Heures d'ouverture : colonne `salon.horaires` (texte) et constantes `OUVERTURE_MIN` / `MOMENTS` / `HEURES_SALON` dans `src/lib/salon/regles.ts`.

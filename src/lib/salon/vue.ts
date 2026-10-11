@@ -44,6 +44,8 @@ export interface Journee {
   attente: CartePrestation[];
   enCours: CartePrestation[];
   aVenir: CartePrestation[];
+  /** Prestations terminées aujourd'hui, les plus récentes d'abord (pour demander un avis). */
+  terminees: CartePrestation[];
   coiffeuses: LigneCoiffeuse[];
   compteurs: { libres: number; occupees: number; absentes: number; total: number };
 }
@@ -93,6 +95,10 @@ export function construireJournee({ coiffeuses, categories = [], prestations, ab
     .filter((p) => p.statut === "prevue")
     .sort((a, b) => (a.debut ?? "").localeCompare(b.debut ?? ""))
     .map(carte);
+  const terminees = duJour
+    .filter((p) => p.statut === "terminee")
+    .sort((a, b) => (b.debut ?? "").localeCompare(a.debut ?? ""))
+    .map(carte);
 
   let libres = 0;
   let occupees = 0;
@@ -127,6 +133,7 @@ export function construireJournee({ coiffeuses, categories = [], prestations, ab
     attente,
     enCours,
     aVenir,
+    terminees,
     coiffeuses: lignes.sort((a, b) => ordreEtat(a.etat) - ordreEtat(b.etat) || a.nom.localeCompare(b.nom, "fr")),
     compteurs: { libres, occupees, absentes, total: actives.length },
   };

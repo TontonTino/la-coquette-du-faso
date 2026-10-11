@@ -17,7 +17,7 @@ import { construireBilan, construireJournee, heureDe } from "./vue";
 const JOUR = "2026-10-10";
 const NOW = new Date("2026-10-10T11:00:00Z");
 
-const c = (id: string, nom: string, joursConge: number[] = []): Coiffeuse => ({ id, nom, joursConge, actif: true, categorieIds: [] });
+const c = (id: string, nom: string, joursConge: number[] = []): Coiffeuse => ({ id, nom, joursConge, actif: true, categorieIds: [], photoUrl: null, moyenne: null, nbAvis: 0 });
 const p = (over: Partial<Prestation> & Pick<Prestation, "id" | "statut">): Prestation => ({
   origine: "rendez_vous",
   clientNom: `Cliente ${over.id}`,
@@ -189,5 +189,57 @@ describe("catalogue de modèles", async () => {
     expect(fourchettePrix(null, null)).toBe("");
     expect(fourchetteDuree(120, 240)).toBe("2\u00a0h – 4\u00a0h");
     expect(fourchetteDuree(150, 150)).toBe("environ 2\u00a0h\u00a030");
+  });
+});
+
+describe("avis des clientes", async () => {
+  const { verifierAvis, scoreAvis, trierParNote, noteAffichee } = await import("./regles");
+  it("n'accepte que des notes entières de 1 à 5", () => {
+    for (const n of [1, 2, 3, 4, 5]) expect(verifierAvis(n, "")).toBeNull();
+    for (const n of [0, 6, 3.5, -1, Number.NaN]) expect(verifierAvis(n, "")).toMatch(/étoiles/);
+    expect(verifierAvis(5, "x".repeat(301))).toMatch(/300/);
+  });
+  it("classe avec prudence : un seul 5/5 ne dépasse pas 40 avis à 4,8", () => {
+    expect(scoreAvis(5, 1)).toBeLessThan(scoreAvis(4.8, 40));
+    expect(scoreAvis(null, 0)).toBeCloseTo(4 * 5 / 5);
+  });
+  it("trie les mieux notées d'abord, puis par nom", () => {
+    const liste = [
+      { nom: "Zoé", moyenne: null, nbAvis: 0 },
+      { nom: "Awa", moyenne: 4.9, nbAvis: 30 },
+      { nom: "Bintou", moyenne: 5, nbAvis: 1 },
+      { nom: "Aïcha", moyenne: null, nbAvis: 0 },
+      { nom: "Mimi", moyenne: 3.2, nbAvis: 20 },
+    ];
+    expect(trierParNote(liste).map((c) => c.nom)).toEqual(["Awa", "Bintou", "Aïcha", "Zoé", "Mimi"]);
+  });
+  it("n'affiche la moyenne qu'à partir de 3 avis, avec une virgule", () => {
+    expect(noteAffichee(4.76, 2)).toBeNull();
+    expect(noteAffichee(null, 0)).toBeNull();
+    expect(noteAffichee(4.76, 3)).toBe("4,8");
+    expect(noteAffichee(5, 10)).toBe("5,0");
+  });
+});
+
+describe("horaires du salon et vidéos", async () => {
+  const { HEURES_SALON, OUVERTURE_MIN, DERNIER_DEBUT_MIN, MOMENTS, verifierVideo } = await import("./regles");
+  it("propose les heures de 6 h 30 à 22 h 30, par pas de 15 minutes", () => {
+    expect(HEURES_SALON[0]).toBe("06:30");
+    expect(HEURES_SALON.at(-1)).toBe("22:30");
+    expect(HEURES_SALON).toHaveLength((DERNIER_DEBUT_MIN - OUVERTURE_MIN) / 15 + 1);
+    expect(HEURES_SALON).toContain("20:45");
+  });
+  it("décrit les trois moments de la journée du salon", () => {
+    expect(MOMENTS.map((m) => m.valeur)).toEqual(["matin", "apres_midi", "fin_journee"]);
+    expect(MOMENTS[0].plage).toMatch(/6 h 30/);
+    expect(MOMENTS[2].plage).toMatch(/23 h/);
+  });
+  it("vérifie le titre et l'adresse d'une vidéo (https obligatoire)", () => {
+    expect(verifierVideo("Nattes collées", "https://exemple.public.blob.vercel-storage.com/v.mp4")).toBeNull();
+    expect(verifierVideo("N", "https://x.fr/v.mp4")).toMatch(/titre/i);
+    expect(verifierVideo("Titre", "http://x.fr/v.mp4")).toMatch(/https/);
+    expect(verifierVideo("Titre", "javascript:alert(1)")).toMatch(/https/);
+    expect(verifierVideo("Titre", "https://x.fr/a b.mp4")).toMatch(/invalide/);
+    expect(verifierVideo("Titre", "pas une adresse")).toMatch(/invalide/);
   });
 });
