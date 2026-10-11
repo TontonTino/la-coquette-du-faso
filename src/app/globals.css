@@ -115,3 +115,20 @@ body {
 .font-display {
   font-variant-numeric: lining-nums;
 }
+
+/* Fil vertical de vidéos plein écran (page « Vidéos »), une vidéo par écran. */
+.defile-y {
+  height: 100dvh;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.defile-y::-webkit-scrollbar {
+  display: none;
+}
+.defile-y > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100dvh;
+}

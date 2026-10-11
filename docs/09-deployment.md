@@ -41,7 +41,7 @@ Symptôme : `git push` réussit, mais aucune nouvelle ligne n'apparaît dans Dep
 
 ## Vidéos courtes, avis et photos de l'équipe
 
-- Vidéos : 15 à 30 s, format vertical, MP4 (H.264) de préférence, 40 Mo maximum par fichier. Le fichier n'est chargé que lorsque la vidéo doit se lancer (économie de données mobiles).
+- Vidéos : page /videos (une vidéo par écran, balayage vers le haut), ouverte par un balayage vers la droite depuis l'accueil. 15 à 30 s, format vertical, MP4 (H.264) de préférence, 40 Mo maximum par fichier. Le fichier n'est chargé que lorsque la vidéo doit se lancer (économie de données mobiles).
 - Plan Hobby de Vercel : 1 Go de stockage Blob et 10 Go de transfert par mois ; au-delà, passer en Pro.
 - Photos de l'équipe : stockées dans la base (800 Ko maximum), demander l'accord des coiffeuses.
 - Avis : une note de 1 à 5 par coiffeuse réellement intervenue ; la moyenne n'est affichée aux clientes qu'à partir de 3 avis ; les commentaires ne sont vus que par la gérante.

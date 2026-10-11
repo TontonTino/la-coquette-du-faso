@@ -5,7 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import { NoteCoiffeuse, PhotoCoiffeuse } from "@/components/public/Equipe";
 import { GalerieDefilante } from "@/components/public/GalerieDefilante";
 import { HabillagePublic } from "@/components/public/Habillage";
-import { VideosDefilantes } from "@/components/public/VideosDefilantes";
+import { BalayageVideos } from "@/components/public/BalayageVideos";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconClock, IconMail, IconPhone, IconPin, IconWhatsApp } from "@/components/ui/icons";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
@@ -39,12 +39,11 @@ export default function Accueil() {
 async function Contenu() {
   await connection(); // données à jour à chaque visite (pas de rendu figé au build)
   const salon = await salonPublic(SALON_PUBLIC);
-  return (
+  const page = (
     <>
       <Hero horaires={salon?.horaires ?? null} />
       <div className="mx-auto max-w-5xl px-4">
         {salon && salon.modeles.length > 0 && <Galerie modeles={salon.modeles} />}
-        {salon && salon.videos.length > 0 && <Videos salon={salon} />}
         <Etapes />
         {salon && <Services salon={salon} />}
         {salon && salon.coiffeuses.length > 0 && <Equipe salon={salon} />}
@@ -53,6 +52,8 @@ async function Contenu() {
       </div>
     </>
   );
+  // Avec des vidéos publiées : un balayage vers la droite ouvre la page des vidéos.
+  return salon && salon.videos.length > 0 ? <BalayageVideos>{page}</BalayageVideos> : page;
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,20 +139,6 @@ const FAMILLES: { valeur: Famille; titre: string }[] = [
   { valeur: "coiffure", titre: "Coiffure" },
   { valeur: "ongles", titre: "Ongles : manucure et pédicure" },
 ];
-
-function Videos({ salon }: { salon: SalonPublic }) {
-  return (
-    <section className="mt-12" aria-labelledby="titre-videos">
-      <h2 id="titre-videos" className="font-display text-[2rem] leading-none font-bold">
-        Voyez le résultat en vidéo
-      </h2>
-      <p className="mt-2 text-sm text-sourdine">Le volume, la couleur, la finition : faites glisser, touchez pour le son.</p>
-      <div className="mt-4">
-        <VideosDefilantes videos={salon.videos.slice(0, 12)} modeles={salon.modeles} />
-      </div>
-    </section>
-  );
-}
 
 function Services({ salon }: { salon: SalonPublic }) {
   const groupes = FAMILLES.map((f) => ({ ...f, types: salon.categories.filter((c) => c.famille === f.valeur) })).filter((g) => g.types.length > 0);

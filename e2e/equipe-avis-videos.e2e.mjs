@@ -172,46 +172,85 @@ await verifier("Une adresse non sécurisée est refusée", async () => {
   await gerante.getByRole("button", { name: "Annuler" }).click();
 });
 
-await verifier("Accueil : la première vidéo se lance seule, sans le son ; la suivante attend d'être en vue", async () => {
+// Simule un balayage du doigt (événements tactiles) : dx > 0 vers la droite, dy < 0 vers le haut.
+async function balayer(p, selecteur, dx, dy) {
+  await p.evaluate(
+    ([sel, dx, dy]) => {
+      const cible = document.querySelector(sel);
+      const r = cible.getBoundingClientRect();
+      const x0 = Math.max(60, Math.min(r.left + r.width / 2, window.innerWidth - 120));
+      const y0 = r.top + Math.min(r.height / 2, 120);
+      const touche = (x, y) => new Touch({ identifier: 1, target: cible, clientX: x, clientY: y });
+      const tire = (type, t, touches) => cible.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches, targetTouches: touches, changedTouches: [t] }));
+      const t0 = touche(x0, y0);
+      tire("touchstart", t0, [t0]);
+      const t1 = touche(x0 + dx, y0 + dy);
+      tire("touchmove", t1, [t1]);
+      tire("touchend", t1, []);
+    },
+    [selecteur, dx, dy],
+  );
+}
+const PISTE = "ul[aria-label='Vidéos des coiffures']";
+
+await verifier("Accueil : aucune vidéo dans la page, mais un onglet « Vidéos » sur le bord gauche", async () => {
   await cliente.goto(`${BASE}/`);
-  await cliente.getByRole("heading", { name: "Voyez le résultat en vidéo" }).waitFor();
+  await cliente.getByRole("link", { name: "Vidéos", exact: true }).waitFor();
+  if ((await cliente.locator("video").count()) !== 0) throw new Error("des vidéos sont affichées sur l'accueil");
+  if ((await cliente.getByRole("heading", { name: "Voyez le résultat en vidéo" }).count()) !== 0) throw new Error("ancienne section vidéos présente");
+  await largeurOk(cliente, "accueil");
+});
+
+await verifier("Un balayage vers la droite sur l'accueil ouvre la page des vidéos", async () => {
+  await balayer(cliente, "h1", 160, 10);
+  await cliente.waitForURL(/\/videos$/, { timeout: 10000 });
+});
+
+await verifier("Vidéos : la première se lance seule, sans le son, plein écran ; la suivante attend", async () => {
   const liste = cliente.getByRole("list", { name: "Vidéos des coiffures" });
-  await liste.scrollIntoViewIfNeeded();
+  await liste.waitFor();
   if ((await liste.getByRole("listitem").count()) < 2) throw new Error("moins de deux vidéos");
-  await cliente.waitForFunction(() => {
-    const v = document.querySelectorAll("ul[aria-label='Vidéos des coiffures'] video");
+  await cliente.waitForFunction((sel) => {
+    const v = document.querySelectorAll(`${sel} video`);
     return v.length === 1 && !v[0].paused && v[0].currentTime > 0;
-  }, null, { timeout: 15000 });
-  const muet = await cliente.evaluate(() => document.querySelector("ul[aria-label='Vidéos des coiffures'] video").muted);
+  }, PISTE, { timeout: 15000 });
+  const muet = await cliente.evaluate((sel) => document.querySelector(`${sel} video`).muted, PISTE);
   if (!muet) throw new Error("la vidéo démarre avec le son");
-  await capture(cliente, "07-videos-accueil");
+  const [h, vh] = await cliente.evaluate((sel) => [document.querySelector(`${sel} > li`).getBoundingClientRect().height, window.innerHeight], PISTE);
+  if (Math.abs(h - vh) > 2) throw new Error(`la vidéo ne remplit pas l'écran (${h} px sur ${vh} px)`);
+  await largeurOk(cliente, "vidéos");
+  await cliente.screenshot({ path: `${SHOTS}/07-videos-plein-ecran.png` });
 });
 
-await verifier("En faisant glisser, la vidéo suivante se lance et la précédente s'arrête", async () => {
-  await cliente.getByRole("list", { name: "Vidéos des coiffures" }).evaluate((el) => el.scrollTo({ left: el.scrollWidth, behavior: "instant" }));
-  await cliente.waitForFunction(() => {
-    const v = [...document.querySelectorAll("ul[aria-label='Vidéos des coiffures'] video")];
+await verifier("En balayant vers le haut, la vidéo suivante se lance et la précédente s'arrête", async () => {
+  await cliente.locator(PISTE).evaluate((el) => el.scrollTo({ top: el.clientHeight, behavior: "instant" }));
+  await cliente.waitForFunction((sel) => {
+    const v = [...document.querySelectorAll(`${sel} video`)];
     return v.length === 2 && v[0].paused && !v[1].paused;
-  }, null, { timeout: 15000 });
-  await capture(cliente, "08-videos-suivante");
+  }, PISTE, { timeout: 15000 });
+  await cliente.screenshot({ path: `${SHOTS}/08-videos-suivante.png` });
 });
 
-await verifier("Le bouton son active puis coupe le son de la vidéo en cours", async () => {
-  // La capture plein écran redimensionne la fenêtre : on se replace sur la dernière vidéo avant d'agir.
-  await cliente.getByRole("list", { name: "Vidéos des coiffures" }).evaluate((el) => el.scrollTo({ left: el.scrollWidth, behavior: "instant" }));
-  await cliente.waitForFunction(() => {
-    const v = [...document.querySelectorAll("ul[aria-label='Vidéos des coiffures'] video")];
-    return v.length === 2 && v[0].paused && !v[1].paused;
-  }, null, { timeout: 15000 });
+await verifier("Le son s'active, reste actif sur l'autre vidéo, puis se coupe", async () => {
   await cliente.getByRole("button", { name: "Activer le son" }).click();
   await cliente.getByRole("button", { name: "Couper le son" }).waitFor();
-  await cliente.waitForFunction(() => [...document.querySelectorAll("ul[aria-label='Vidéos des coiffures'] video")][1].muted === false, null, { timeout: 5000 });
+  await cliente.waitForFunction((sel) => document.querySelectorAll(`${sel} video`)[1].muted === false, PISTE, { timeout: 5000 });
+  await cliente.locator(PISTE).evaluate((el) => el.scrollTo({ top: 0, behavior: "instant" }));
+  await cliente.waitForFunction((sel) => {
+    const v = [...document.querySelectorAll(`${sel} video`)];
+    return !v[0].paused && v[0].muted === false && v[1].paused;
+  }, PISTE, { timeout: 15000 });
   await cliente.getByRole("button", { name: "Couper le son" }).click();
   await cliente.getByRole("button", { name: "Activer le son" }).waitFor();
 });
 
+await verifier("Un balayage vers la gauche ramène à l'accueil", async () => {
+  await balayer(cliente, `${PISTE} > li`, -160, 8);
+  await cliente.waitForURL(`${BASE}/`, { timeout: 10000 });
+});
+
 await verifier("« Je veux cette coiffure » ouvre la réservation avec le modèle choisi", async () => {
-  await cliente.getByRole("list", { name: "Vidéos des coiffures" }).evaluate((el) => el.scrollTo({ left: 0, behavior: "instant" }));
+  await cliente.goto(`${BASE}/videos`);
   const lien = cliente.getByRole("link", { name: "Je veux cette coiffure" }).first();
   await lien.waitFor();
   await lien.click();
