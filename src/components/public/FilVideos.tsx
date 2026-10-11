@@ -17,7 +17,7 @@ function lireAutoplay() {
 
 /**
  * Page « Vidéos » : une vidéo par écran, comme sur TikTok. On passe à la suivante en balayant vers le haut,
- * on revient à l'accueil en balayant vers la gauche (ou avec la flèche).
+ * on revient à l'accueil en balayant vers la droite (ou avec la flèche).
  * Économe en données mobiles : seule la vidéo en vue est chargée et jouée ; elle démarre sans le son.
  * Une fois le son activé, il reste activé pour les vidéos suivantes.
  */
@@ -28,8 +28,15 @@ export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Model
   const doigt = useRef<{ x: number; y: number } | null>(null);
   const [actif, setActif] = useState<string | null>(videos[0]?.id ?? null);
   const [son, setSon] = useState(false);
+  const [enVue, setEnVue] = useState(() => typeof document === "undefined" || !document.hidden);
   // Lu dans le navigateur ; côté serveur et à l'hydratation : false (évite tout écart d'affichage).
   const autoplay = useSyncExternalStore(abonner, lireAutoplay, () => false);
+  // Onglet ou application mise en arrière-plan : tout s'arrête.
+  useEffect(() => {
+    const f = () => setEnVue(!document.hidden);
+    document.addEventListener("visibilitychange", f);
+    return () => document.removeEventListener("visibilitychange", f);
+  }, []);
   const rang = Math.max(0, videos.findIndex((v) => v.id === actif));
 
   // La vidéo la plus visible (au moins 60 %) devient la vidéo active.
@@ -64,7 +71,7 @@ export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Model
     if (!d) return;
     const dx = e.changedTouches[0].clientX - d.x;
     const dy = Math.abs(e.changedTouches[0].clientY - d.y);
-    if (dx <= -DISTANCE_RETOUR && -dx > dy * 1.8) routeur.push("/");
+    if (dx >= DISTANCE_RETOUR && dx > dy * 1.8) routeur.push("/");
   };
 
   return (
@@ -90,7 +97,7 @@ export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Model
             key={v.id}
             video={v}
             modele={modeles.find((m) => m.id === v.modeleId) ?? null}
-            actif={actif === v.id}
+            actif={actif === v.id && enVue}
             autoplay={autoplay}
             son={son}
             changerSon={() => setSon((s) => !s)}
@@ -143,6 +150,8 @@ function Carte({
       v.pause();
       v.currentTime = 0;
     }
+    // Page quittée (ou mise en réserve par le navigateur) : la vidéo et son son s'arrêtent aussitôt.
+    return () => v.pause();
   }, [veutJouer, charge, son, actif]);
 
   const toucher = () => {

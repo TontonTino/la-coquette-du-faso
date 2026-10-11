@@ -99,7 +99,7 @@ function Galerie({ modeles }: { modeles: SalonPublic["modeles"] }) {
         <h2 id="titre-modeles" className="font-display text-[2rem] leading-none font-bold">
           Nos réalisations
         </h2>
-        <Link href="/reserver" className="pb-1 text-sm font-medium text-or-fonce underline decoration-or/50 underline-offset-4">
+        <Link href="/realisations" className="pb-1 text-sm font-medium text-or-fonce underline decoration-or/50 underline-offset-4">
           Tout voir
         </Link>
       </div>
@@ -180,15 +180,13 @@ function Equipe({ salon }: { salon: SalonPublic }) {
         Notre équipe
       </h2>
       <p className="mt-2 text-sm text-sourdine">Les mieux notées par nos clientes passent en premier. Touchez pour la choisir.</p>
-      <ul className="defile-x -mx-4 mt-4 gap-3 px-4 pb-2">
+      <ul className="defile-x -mx-4 mt-5 gap-2 px-4 pb-2">
         {salon.coiffeuses.slice(0, 30).map((c) => {
           const specialites = c.categorieIds.map((id) => nomType.get(id)).filter(Boolean).slice(0, 2);
           return (
-            <li key={c.id} className="w-[44%] sm:w-[30%] lg:w-[20%]">
-              <Link href={`/reserver?coiffeuse=${c.id}`} className="group block">
-                <span className="block overflow-hidden rounded-[1.25rem] bg-sable shadow-carte">
-                  <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="aspect-[4/5] w-full transition-transform duration-500 group-hover:scale-[1.03]" />
-                </span>
+            <li key={c.id} className="w-[7.5rem]">
+              <Link href={`/reserver?coiffeuse=${c.id}`} className="group flex flex-col items-center text-center">
+                <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="size-24 text-[2rem] shadow-carte ring-2 ring-or/40 transition-transform duration-500 group-hover:scale-[1.04]" />
                 <span className="mt-2 block text-sm leading-snug font-semibold">{c.nom}</span>
                 <NoteCoiffeuse note={c.note} nbAvis={c.nbAvis} />
                 {specialites.length > 0 && <span className="mt-0.5 block text-xs leading-snug text-sourdine">{specialites.join(", ")}</span>}

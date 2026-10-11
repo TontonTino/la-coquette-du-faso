@@ -193,7 +193,7 @@ async function balayer(p, selecteur, dx, dy) {
 }
 const PISTE = "ul[aria-label='Vidéos des coiffures']";
 
-await verifier("Accueil : aucune vidéo dans la page, mais un onglet « Vidéos » sur le bord gauche", async () => {
+await verifier("Accueil : aucune vidéo dans la page, mais un onglet « Vidéos » sur le bord droit", async () => {
   await cliente.goto(`${BASE}/`);
   await cliente.getByRole("link", { name: "Vidéos", exact: true }).waitFor();
   if ((await cliente.locator("video").count()) !== 0) throw new Error("des vidéos sont affichées sur l'accueil");
@@ -201,8 +201,8 @@ await verifier("Accueil : aucune vidéo dans la page, mais un onglet « Vidéos 
   await largeurOk(cliente, "accueil");
 });
 
-await verifier("Un balayage vers la droite sur l'accueil ouvre la page des vidéos", async () => {
-  await balayer(cliente, "h1", 160, 10);
+await verifier("Un balayage vers la gauche sur l'accueil ouvre la page des vidéos", async () => {
+  await balayer(cliente, "h1", -160, 10);
   await cliente.waitForURL(/\/videos$/, { timeout: 10000 });
 });
 
@@ -244,9 +244,27 @@ await verifier("Le son s'active, reste actif sur l'autre vidéo, puis se coupe",
   await cliente.getByRole("button", { name: "Activer le son" }).waitFor();
 });
 
-await verifier("Un balayage vers la gauche ramène à l'accueil", async () => {
-  await balayer(cliente, `${PISTE} > li`, -160, 8);
+await verifier("Un balayage vers la droite ramène à l'accueil, et plus aucune vidéo ne joue", async () => {
+  await balayer(cliente, `${PISTE} > li`, 160, 8);
   await cliente.waitForURL(`${BASE}/`, { timeout: 10000 });
+  await cliente.waitForFunction(() => [...document.querySelectorAll("video")].every((v) => v.paused), null, { timeout: 5000 });
+});
+
+await verifier("Notre équipe : les photos sont rondes ; « Tout voir » ouvre la bibliothèque des réalisations", async () => {
+  await cliente.goto(`${BASE}/`);
+  await cliente.getByRole("heading", { name: "Notre équipe" }).waitFor();
+  const formes = await cliente.evaluate(() =>
+    [...document.querySelectorAll("#titre-equipe ~ ul img, #titre-equipe ~ ul [role='img']")].map((e) => {
+      const r = e.getBoundingClientRect();
+      return Math.abs(r.width - r.height) < 1 && parseFloat(getComputedStyle(e).borderTopLeftRadius) >= r.width / 2 - 1;
+    }),
+  );
+  if (formes.length === 0 || formes.includes(false)) throw new Error("une photo de coiffeuse n'est pas ronde");
+  await cliente.getByRole("link", { name: "Tout voir" }).click();
+  await cliente.waitForURL(/\/realisations$/);
+  await cliente.getByRole("heading", { name: "Nos réalisations" }).waitFor();
+  if ((await cliente.locator("main:visible ul img").count()) < 1) throw new Error("aucune photo dans la bibliothèque");
+  await largeurOk(cliente, "réalisations");
 });
 
 await verifier("« Je veux cette coiffure » ouvre la réservation avec le modèle choisi", async () => {

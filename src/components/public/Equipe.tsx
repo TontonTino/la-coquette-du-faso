@@ -1,10 +1,10 @@
 import { IconStar } from "@/components/ui/icons";
 
-/** Photo d'une coiffeuse ; à défaut, ses initiales sur fond noir (les clientes ne connaissent pas les noms). */
+/** Photo d'une coiffeuse, toujours ronde (jamais de grand carré) ; à défaut, ses initiales sur fond noir (les clientes ne connaissent pas les noms). */
 export function PhotoCoiffeuse({ nom, photoUrl, className = "" }: { nom: string; photoUrl: string | null; className?: string }) {
   if (photoUrl) {
     // eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite
-    return <img src={photoUrl} alt={nom} loading="lazy" draggable={false} className={`object-cover ${className}`} />;
+    return <img src={photoUrl} alt={nom} loading="lazy" draggable={false} className={`overflow-hidden rounded-full object-cover ${className}`} />;
   }
   const ini = nom
     .split(/\s+/)
@@ -13,7 +13,7 @@ export function PhotoCoiffeuse({ nom, photoUrl, className = "" }: { nom: string;
     .map((m) => m[0]?.toUpperCase())
     .join("");
   return (
-    <span role="img" aria-label={nom} className={`flex items-center justify-center bg-noir font-display text-[2.2rem] font-bold text-or ${className}`}>
+    <span role="img" aria-label={nom} className={`flex items-center justify-center overflow-hidden rounded-full bg-noir font-display text-[2.2rem] font-bold text-or ${className}`}>
       {ini}
     </span>
   );
