@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { classeInput } from "@/app/salon/ui";
 import { PhotoCoiffeuse } from "@/components/public/Equipe";
+import { Alerte, ChampPublic, classeChamp } from "@/components/public/formulaire";
 import { Button } from "@/components/ui/Button";
-import { IconCheck, IconStar } from "@/components/ui/icons";
+import { IconStar } from "@/components/ui/icons";
 import { noterAction } from "./actions";
 
 interface ACoiffeuse {
@@ -72,32 +72,26 @@ function Carte({ reference, c }: { reference: string; c: ACoiffeuse }) {
             }}
             className="flex size-12 items-center justify-center rounded-full transition-transform active:scale-90"
           >
-            <IconStar width={34} height={34} strokeWidth={1.4} fill={n <= note ? "currentColor" : "none"} className={n <= note ? "text-or" : "text-trait"} />
+            <IconStar width={34} height={34} strokeWidth={1.4} fill={n <= note ? "currentColor" : "none"} className={n <= note ? "text-detail" : "text-champ"} />
           </button>
         ))}
-        {note > 0 && <span className="ml-2 text-sm font-medium text-or-fonce">{MOTS[note]}</span>}
+        {note > 0 && <span className="ml-2 text-sm font-medium text-accent-texte">{MOTS[note]}</span>}
       </div>
       {note > 0 && !envoyee && (
         <div className="mt-2">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs text-sourdine">Un mot pour le salon ? (facultatif, vu seulement par la gérante)</span>
-            <input className={classeInput} value={commentaire} onChange={(e) => setCommentaire(e.target.value)} maxLength={300} />
-          </label>
-          {erreur && (
-            <p role="alert" className="mt-2 text-sm text-rouge">
-              {erreur}
-            </p>
-          )}
-          <Button variant="noir" className="mt-3 w-full" loading={enCours} onClick={envoyer}>
-            Envoyer mon avis
+          <ChampPublic label="Un mot pour le salon ?" aide="Facultatif. Seule la gérante le lit.">
+            {(champ) => <input {...champ} className={classeChamp} value={commentaire} onChange={(e) => setCommentaire(e.target.value)} maxLength={300} enterKeyHint="send" />}
+          </ChampPublic>
+          {erreur && <Alerte ton="erreur">{erreur}</Alerte>}
+          <Button variant="action" className="mt-3 w-full" loading={enCours} onClick={envoyer}>
+            {enCours ? "Envoi en cours…" : "Envoyer mon avis"}
           </Button>
         </div>
       )}
       {envoyee && (
-        <p role="status" className="mt-2 flex items-center gap-2 text-sm font-medium text-vert">
-          <IconCheck width={18} height={18} strokeWidth={2.2} />
-          Merci ! Votre avis est enregistré.
-        </p>
+        <div className="mt-2">
+          <Alerte ton="succes">Merci ! Votre avis est enregistré.</Alerte>
+        </div>
       )}
     </div>
   );

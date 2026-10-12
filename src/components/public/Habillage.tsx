@@ -1,12 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/layout/Logo";
+import { themeDuSalon, variablesCss } from "@/lib/salon/theme";
+import { SALON_PUBLIC } from "@/server/salon/public-config";
 
 /** En-tête et pied de page des pages clientes (publiques). */
 export function HabillagePublic({ children, plein = false }: { children: ReactNode; plein?: boolean }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-lin text-encre">
-      <header className="sticky top-0 z-30 border-b border-or/20 bg-noir text-white">
+    <div className="pages-clientes flex min-h-dvh flex-col bg-lin text-encre" style={variablesCss(themeDuSalon(SALON_PUBLIC))}>
+      <header className="surface-sombre sticky top-0 z-30 border-b border-or/20 bg-noir text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2">
           <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="La Coquette du Faso, accueil">
             <Logo size={36} priority />
@@ -18,7 +20,7 @@ export function HabillagePublic({ children, plein = false }: { children: ReactNo
         </div>
       </header>
       <main className={plein ? "w-full flex-1" : "mx-auto w-full max-w-3xl flex-1 px-4 py-6"}>{children}</main>
-      <footer className="border-t border-white/10 bg-noir text-white/60">
+      <footer className="surface-sombre border-t border-white/10 bg-noir text-white/60">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 text-xs">
           <span className="flex items-center gap-2">
             <Logo size={24} />

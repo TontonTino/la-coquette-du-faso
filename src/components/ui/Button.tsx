@@ -1,13 +1,15 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-type Variant = "or" | "noir" | "contour" | "contour-clair" | "discret" | "danger";
+type Variant = "or" | "action" | "noir" | "contour" | "contour-clair" | "discret" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
   "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background-color,color,border-color,box-shadow,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 select-none whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
+  /** Bouton principal des pages clientes : couleur d'action du salon (thème), texte lisible. */
+  action: "bg-action text-action-texte hover:bg-action-fort shadow-carte",
   or: "bg-or text-noir hover:bg-[#d4b25e] shadow-or",
   noir: "bg-noir text-white hover:bg-noir-doux",
   contour: "border border-noir/15 bg-white text-noir hover:border-or hover:bg-creme",

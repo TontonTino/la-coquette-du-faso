@@ -62,7 +62,7 @@ let coiffeuseSouhaitee = "";
 await verifier("Accueil public : présentation et services", async () => {
   await cliente.goto(`${BASE}/`);
   await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().waitFor();
-  await cliente.getByRole("heading", { name: "Nos services" }).waitFor();
+  await cliente.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   await largeurOk(cliente, "accueil");
   await capture(cliente, "01-accueil");
 });
@@ -181,7 +181,7 @@ await verifier("La gérante renseigne le WhatsApp du salon ; l'accueil le propos
   await secretaire.getByRole("button", { name: "Enregistrer" }).first().click();
   await secretaire.getByText("Numéro WhatsApp du salon enregistré").waitFor();
   await cliente.goto(`${BASE}/`);
-  await cliente.getByRole("link", { name: "Écrire au salon" }).waitFor();
+  await cliente.getByRole("link", { name: "Écrire au salon" }).first().waitFor();
 });
 
 // Le suivi est rendu en streaming : le statut HTTP part avant la recherche (200), mais la page

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense, type ReactNode } from "react";
@@ -6,9 +7,11 @@ import { NoteCoiffeuse, PhotoCoiffeuse } from "@/components/public/Equipe";
 import { GalerieDefilante } from "@/components/public/GalerieDefilante";
 import { HabillagePublic } from "@/components/public/Habillage";
 import { BalayageVideos } from "@/components/public/BalayageVideos";
+import { BandeInfos, CartePrestation, Couverture, SectionSalon, TitreSection } from "@/components/public/accueil";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconClock, IconMail, IconPhone, IconPin, IconWhatsApp } from "@/components/ui/icons";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
+import { vitrineDuSalon } from "@/lib/salon/vitrine";
 import type { Famille } from "@/lib/salon/types";
 import { SALON_PUBLIC } from "@/server/salon/public-config";
 import { salonPublic, type SalonPublic } from "@/server/salon/service";
@@ -26,10 +29,12 @@ const ETAPES = [
   { titre: "Vous venez au salon", texte: "Votre coiffeuse vous attend : fini les longues attentes." },
 ];
 
+const VITRINE = vitrineDuSalon(SALON_PUBLIC);
+
 export default function Accueil() {
   return (
     <HabillagePublic plein>
-      <Suspense fallback={<Hero />}>
+      <Suspense fallback={<Couverture vitrine={VITRINE} horaires={null} />}>
         <Contenu />
       </Suspense>
     </HabillagePublic>
@@ -39,16 +44,21 @@ export default function Accueil() {
 async function Contenu() {
   await connection(); // données à jour à chaque visite (pas de rendu figé au build)
   const salon = await salonPublic(SALON_PUBLIC);
+  const wa = salon?.whatsapp ? lienWhatsApp(salon.whatsapp, "Bonjour, j'ai une question pour un rendez-vous.") : null;
   const page = (
     <>
-      <Hero horaires={salon?.horaires ?? null} />
+      <Couverture vitrine={VITRINE} horaires={salon?.horaires ?? null} />
+      {salon && <BandeInfos adresse={salon.adresse} whatsappLien={wa} />}
       <div className="mx-auto max-w-5xl px-4">
-        {salon && salon.modeles.length > 0 && <Galerie modeles={salon.modeles} />}
-        <Etapes />
         {salon && <Services salon={salon} />}
+        {(VITRINE.realisations.length > 0 || (salon && salon.modeles.length > 0)) && <Galerie modeles={salon?.modeles ?? []} />}
+      </div>
+      {VITRINE.salon && <SectionSalon salon={VITRINE.salon} />}
+      <div className="mx-auto max-w-5xl px-4">
         {salon && salon.coiffeuses.length > 0 && <Equipe salon={salon} />}
+        <Etapes />
         {salon && <NousTrouver salon={salon} />}
-        {salon && <AppelFinal salon={salon} />}
+        {salon && <AppelFinal salon={salon} wa={wa} />}
       </div>
     </>
   );
@@ -58,75 +68,37 @@ async function Contenu() {
 
 /* ------------------------------------------------------------------ */
 
-function Accroche({ horaires }: { horaires: string | null }) {
-  return (
-    <>
-      <h1 className="font-display text-[2.9rem] leading-[0.95] font-bold text-white lg:text-[4rem]">Votre coiffure, sans attendre.</h1>
-      <p className="mt-4 max-w-md text-[15px] leading-relaxed text-white/75">
-        Choisissez votre modèle et demandez votre rendez-vous en une minute. Le salon vous confirme l&apos;heure sur WhatsApp.
-      </p>
-      <Link href="/reserver" className={buttonClasses("or", "lg", "mt-7 w-full sm:w-auto")}>
-        Demander un rendez-vous
-      </Link>
-      {horaires && (
-        <p className="mt-5 flex items-center gap-2 text-sm text-white/70">
-          <IconClock width={16} height={16} className="shrink-0 text-or" />
-          <span>Ouvert · {horaires}</span>
-        </p>
-      )}
-    </>
-  );
-}
-
-function Hero({ horaires = null }: { horaires?: string | null }) {
-  return (
-    <section className="texture-noire">
-      <div className="mx-auto max-w-5xl px-4 pt-12 pb-12 sm:pt-20 sm:pb-16">
-        <div className="max-w-xl">
-          <Accroche horaires={horaires} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
 function Galerie({ modeles }: { modeles: SalonPublic["modeles"] }) {
   return (
-    <section className="mt-10" aria-labelledby="titre-modeles">
+    <section className="mt-16" aria-labelledby="titre-modeles">
       <div className="flex items-end justify-between gap-4">
-        <h2 id="titre-modeles" className="font-display text-[2rem] leading-none font-bold">
-          Nos réalisations
-        </h2>
-        <Link href="/realisations" className="pb-1 text-sm font-medium text-or-fonce underline decoration-or/50 underline-offset-4">
+        <TitreSection id="titre-modeles" etiquette="Réalisations" titre="Nos réalisations" />
+        <Link href="/realisations" className="mb-1 inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-accent-texte underline decoration-detail decoration-2 underline-offset-4">
           Tout voir
         </Link>
       </div>
-      <p className="mt-2 text-sm text-sourdine">Faites glisser pour voir plus, touchez un modèle pour le demander.</p>
+      <p className="mt-4 text-sm text-sourdine">{modeles.length > 0 ? "Faites glisser pour voir plus, touchez un modèle pour le demander." : "Les coiffures réalisées au salon. Faites glisser pour voir plus."}</p>
       {/* Les plus récents seulement : la page reste légère même avec des milliers de modèles. */}
-      <GalerieDefilante modeles={modeles.slice(0, GALERIE_MAX)} />
+      <GalerieDefilante modeles={modeles.slice(0, GALERIE_MAX)} photos={VITRINE.realisations} />
+      <Link href="/reserver" className={buttonClasses("action", "lg", "mt-6 w-full sm:w-auto")}>
+        Demander un rendez-vous
+      </Link>
     </section>
   );
 }
 
 function Etapes() {
   return (
-    <section className="mt-12" aria-labelledby="titre-etapes">
-      <h2 id="titre-etapes" className="font-display text-[2rem] leading-none font-bold">
-        Comment ça marche
-      </h2>
-      {/* Un fil d'or relie les trois étapes : c'est un parcours, dans l'ordre. */}
-      <ol className="relative mt-6 flex flex-col gap-7 pl-14 before:absolute before:top-3 before:bottom-3 before:left-[1.2rem] before:w-px before:bg-gradient-to-b before:from-or before:via-or/60 before:to-or/10">
+    <section className="mt-16" aria-labelledby="titre-etapes">
+      <TitreSection id="titre-etapes" etiquette="En trois étapes" titre="Comment ça marche" />
+      {/* Un fil relie les trois étapes : c'est un parcours, dans l'ordre. */}
+      <ol className="relative mt-8 flex flex-col gap-8 pl-16 before:absolute before:top-3 before:bottom-3 before:left-[1.4rem] before:w-px before:bg-gradient-to-b before:from-detail before:via-detail/60 before:to-detail/10">
         {ETAPES.map((e, i) => (
           <li key={e.titre} className="relative">
-            <span
-              className="absolute top-0 -left-14 flex size-10 items-center justify-center rounded-full border border-or bg-lin font-display text-xl font-bold text-or-fonce"
-              aria-hidden
-            >
+            <span className="absolute top-0 -left-16 flex size-12 items-center justify-center rounded-full bg-marque font-display text-2xl font-bold text-detail" aria-hidden>
               {i + 1}
             </span>
-            <p className="pt-1.5 font-semibold">{e.titre}</p>
+            <p className="pt-1 font-display text-2xl leading-tight font-bold">{e.titre}</p>
             <p className="mt-1 text-sm leading-relaxed text-sourdine">{e.texte}</p>
           </li>
         ))}
@@ -135,37 +107,20 @@ function Etapes() {
   );
 }
 
-const FAMILLES: { valeur: Famille; titre: string }[] = [
-  { valeur: "coiffure", titre: "Coiffure" },
-  { valeur: "ongles", titre: "Ongles : manucure et pédicure" },
+const FAMILLES: { valeur: Famille; titre: string; sousTitre: string; ton: "photo" | "terracotta" }[] = [
+  { valeur: "coiffure", titre: "Coiffure", sousTitre: "Choisissez le type de coiffure, vous enverrez votre photo sur WhatsApp ensuite.", ton: "photo" },
+  { valeur: "ongles", titre: "Ongles", sousTitre: "Manucure et pédicure, avec nos spécialistes.", ton: "terracotta" },
 ];
 
 function Services({ salon }: { salon: SalonPublic }) {
   const groupes = FAMILLES.map((f) => ({ ...f, types: salon.categories.filter((c) => c.famille === f.valeur) })).filter((g) => g.types.length > 0);
   if (groupes.length === 0) return null;
   return (
-    <section className="mt-12" aria-labelledby="titre-services">
-      <h2 id="titre-services" className="font-display text-[2rem] leading-none font-bold">
-        Nos services
-      </h2>
-      <p className="mt-2 text-sm text-sourdine">Vous avez déjà votre photo ? Choisissez le type, vous l&apos;enverrez sur WhatsApp ensuite.</p>
-      <div className="mt-4 flex flex-col gap-5">
+    <section id="prestations" className="mt-14 scroll-mt-20" aria-labelledby="titre-services">
+      <TitreSection id="titre-services" etiquette="Nos prestations" titre="Choisissez votre service" />
+      <div className={`mt-8 grid gap-5 ${groupes.length > 1 ? "md:grid-cols-2" : ""}`}>
         {groupes.map((g) => (
-          <div key={g.valeur}>
-            <h3 className="mb-2 text-sm font-semibold text-or-fonce">{g.titre}</h3>
-            <ul className="flex flex-wrap gap-2">
-              {g.types.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    href={`/reserver?type=${c.id}`}
-                    className="inline-flex min-h-11 items-center rounded-full border border-trait bg-white px-4 text-sm font-medium hover:border-or hover:bg-or-pale"
-                  >
-                    {c.nom}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <CartePrestation key={g.valeur} titre={g.titre} sousTitre={g.sousTitre} photo={VITRINE.familles[g.valeur as "coiffure" | "ongles"] ?? null} types={g.types} ton={g.ton} />
         ))}
       </div>
     </section>
@@ -175,18 +130,16 @@ function Services({ salon }: { salon: SalonPublic }) {
 function Equipe({ salon }: { salon: SalonPublic }) {
   const nomType = new Map(salon.categories.map((c) => [c.id, c.nom]));
   return (
-    <section className="mt-12" aria-labelledby="titre-equipe">
-      <h2 id="titre-equipe" className="font-display text-[2rem] leading-none font-bold">
-        Notre équipe
-      </h2>
-      <p className="mt-2 text-sm text-sourdine">Les mieux notées par nos clientes passent en premier. Touchez pour la choisir.</p>
+    <section className="mt-16" aria-labelledby="titre-equipe">
+      <TitreSection id="titre-equipe" etiquette="Votre coiffeuse" titre="Notre équipe" />
+      <p className="mt-4 text-sm text-sourdine">Les mieux notées par nos clientes passent en premier. Touchez pour la choisir.</p>
       <ul className="defile-x -mx-4 mt-5 gap-2 px-4 pb-2">
         {salon.coiffeuses.slice(0, 30).map((c) => {
           const specialites = c.categorieIds.map((id) => nomType.get(id)).filter(Boolean).slice(0, 2);
           return (
             <li key={c.id} className="w-[7.5rem]">
               <Link href={`/reserver?coiffeuse=${c.id}`} className="group flex flex-col items-center text-center">
-                <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="size-24 text-[2rem] shadow-carte ring-2 ring-or/40 transition-transform duration-500 group-hover:scale-[1.04]" />
+                <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="size-24 text-[2rem] shadow-carte ring-2 ring-detail/60 transition-transform duration-500 group-hover:scale-[1.04]" />
                 <span className="mt-2 block text-sm leading-snug font-semibold">{c.nom}</span>
                 <NoteCoiffeuse note={c.note} nbAvis={c.nbAvis} />
                 {specialites.length > 0 && <span className="mt-0.5 block text-xs leading-snug text-sourdine">{specialites.join(", ")}</span>}
@@ -207,43 +160,49 @@ function NousTrouver({ salon }: { salon: SalonPublic }) {
   if (salon.telephone) lignes.push({ icone: <IconPhone />, titre: "Téléphone", texte: salon.telephone, lien: tel ? `tel:${tel}` : null });
   if (salon.email) lignes.push({ icone: <IconMail />, titre: "Email", texte: salon.email, lien: `mailto:${salon.email}` });
   if (lignes.length === 0) return null;
+  const f = VITRINE.facade;
   return (
-    <section className="mt-12" aria-labelledby="titre-contact">
-      <h2 id="titre-contact" className="font-display text-[2rem] leading-none font-bold">
-        Nous trouver
-      </h2>
-      <p className="mt-2 text-sm text-sourdine">Deux équipes se relaient : venez avant d&apos;aller au travail, ou à la descente.</p>
-      <ul className="mt-4 divide-y divide-trait overflow-hidden rounded-2xl bg-white shadow-carte">
-        {lignes.map((l) => (
-          <li key={l.titre} className="flex items-start gap-3 px-4 py-3.5">
-            <span className="mt-0.5 shrink-0 text-or-fonce">{l.icone}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs text-sourdine">{l.titre}</p>
-              <p className="text-[15px] leading-snug [overflow-wrap:anywhere]">{l.texte}</p>
-            </div>
-            {l.lien && (
-              <a
-                href={l.lien}
-                {...(l.lien.startsWith("https") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                className="flex min-h-11 shrink-0 items-center rounded-full border border-trait px-4 text-sm font-medium hover:border-or hover:bg-or-pale"
-              >
-                {l.titre === "Adresse" ? "Itinéraire" : l.titre === "Téléphone" ? "Appeler" : "Écrire"}
-              </a>
-            )}
-          </li>
-        ))}
-      </ul>
+    <section className="mt-16" aria-labelledby="titre-contact">
+      <TitreSection id="titre-contact" etiquette="Venir au salon" titre="Nous trouver" />
+      <p className="mt-4 text-sm text-sourdine">Deux équipes se relaient : venez avant d&apos;aller au travail, ou à la descente.</p>
+      <div className={`mt-6 grid gap-5 ${f ? "md:grid-cols-[1fr_1.2fr] md:items-start" : ""}`}>
+        {f && (
+          <Image src={f.src} alt={f.alt} width={f.largeur} height={f.hauteur} sizes="(min-width: 768px) 400px, 100vw" className="aspect-[4/3] w-full rounded-[2rem] object-cover shadow-photo md:aspect-[4/5] md:max-h-[28rem]" style={{ objectPosition: f.cadrage ?? "50% 30%" }} />
+        )}
+        <ul className="divide-y divide-trait self-start overflow-hidden rounded-2xl bg-white shadow-carte">
+          {lignes.map((l) => (
+            <li key={l.titre} className="flex items-start gap-3 px-4 py-3.5">
+              <span className="mt-0.5 shrink-0 text-accent-texte">{l.icone}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-sourdine">{l.titre}</p>
+                <p className="text-[15px] leading-snug [overflow-wrap:anywhere]">{l.texte}</p>
+              </div>
+              {l.lien && (
+                <a
+                  href={l.lien}
+                  {...(l.lien.startsWith("https") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="flex min-h-11 shrink-0 items-center rounded-full border border-champ px-4 text-sm font-medium hover:bg-accent-pale"
+                >
+                  {l.titre === "Adresse" ? "Itinéraire" : l.titre === "Téléphone" ? "Appeler" : "Écrire"}
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
 
-function AppelFinal({ salon }: { salon: SalonPublic }) {
-  const wa = salon.whatsapp ? lienWhatsApp(salon.whatsapp, "Bonjour, j'ai une question pour un rendez-vous.") : null;
+function AppelFinal({ salon, wa }: { salon: SalonPublic; wa: string | null }) {
   return (
-    <section className="texture-noire mt-12 mb-12 overflow-hidden rounded-[1.75rem] p-6 text-white">
-      <h2 className="font-display text-[1.9rem] leading-tight font-bold">Prête pour votre nouveau look ?</h2>
-      <p className="mt-2 text-sm text-white/70">Envoyez votre demande maintenant, le salon vous répond sur WhatsApp.</p>
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+    <section className="surface-sombre relative mt-16 mb-14 overflow-hidden rounded-[2rem] bg-marque p-7 text-white sm:p-10">
+      <span className="absolute -right-14 -bottom-14 size-52 rounded-full border-[22px] border-white/10" aria-hidden />
+      <h2 className="relative font-display text-[2.4rem] leading-[0.95] font-bold text-balance sm:text-[3rem]">
+        Prête pour votre <span className="text-detail">nouveau look</span> ?
+      </h2>
+      <p className="relative mt-3 max-w-md text-sm text-white/85">Envoyez votre demande maintenant, le salon vous répond sur WhatsApp.</p>
+      <div className="relative mt-6 flex flex-col gap-3 sm:flex-row">
         <Link href="/reserver" className={buttonClasses("or", "lg", "w-full sm:w-auto")}>
           Réserver ma place
         </Link>
@@ -254,7 +213,7 @@ function AppelFinal({ salon }: { salon: SalonPublic }) {
           </a>
         )}
       </div>
-      {salon.whatsapp && <p className="mt-4 text-xs text-white/50">WhatsApp du salon : {salon.whatsapp}</p>}
+      {salon.whatsapp && <p className="relative mt-4 text-xs text-white/70">WhatsApp du salon : {salon.whatsapp}</p>}
     </section>
   );
 }

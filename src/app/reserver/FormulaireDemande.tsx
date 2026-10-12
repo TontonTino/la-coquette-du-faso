@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { Champ, Choix, classeInput } from "@/app/salon/ui";
-import { Button } from "@/components/ui/Button";
 import { NoteCoiffeuse, PhotoCoiffeuse } from "@/components/public/Equipe";
+import { Alerte, ChampPublic, ChoixPublic, classeChamp } from "@/components/public/formulaire";
+import { Button } from "@/components/ui/Button";
 import { IconCheck, IconInfini, IconSun, IconSunrise, IconSunset } from "@/components/ui/icons";
 import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
 import type { Famille } from "@/lib/salon/types";
@@ -29,11 +29,11 @@ function Etape({ n, titre, aide, children }: { n: number; titre: string; aide?: 
   return (
     <section className="border-t border-trait py-6 first:border-t-0 first:pt-2">
       <div className="mb-4 flex items-start gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-noir font-display text-lg font-bold text-or" aria-hidden>
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-marque font-display text-lg font-bold text-detail" aria-hidden>
           {n}
         </span>
         <div className="pt-0.5">
-          <h2 className="font-semibold">{titre}</h2>
+          <h2 className="text-[17px] font-semibold">{titre}</h2>
           {aide && <p className="mt-0.5 text-sm text-sourdine">{aide}</p>}
         </div>
       </div>
@@ -95,6 +95,8 @@ export function FormulaireDemande({
     (c) => (!type || c.categorieIds.includes(type)) && !c.joursConge.includes(weekday(jour)),
   );
   const coiffeuseValide = coiffeusesPossibles.some((c) => c.id === coiffeuse) ? coiffeuse : "";
+  // Coiffeuse choisie (ex. depuis « Notre équipe ») mais non proposée pour ce service ce jour-là : on le dit, sans rien cacher.
+  const coiffeuseEcartee = coiffeuse && !coiffeuseValide ? (salon.coiffeuses.find((c) => c.id === coiffeuse)?.nom ?? null) : null;
   const nomType = salon.categories.find((c) => c.id === type)?.nom ?? null;
   const resume = [
     modeleChoisi?.nom ?? nomType ?? "Coiffure à préciser",
@@ -109,7 +111,11 @@ export function FormulaireDemande({
     if (nom.trim().length < 2) e.nom = "Indiquez votre nom.";
     if (tel.replace(/\D/g, "").length < 8) e.tel = "Indiquez votre numéro WhatsApp (8 chiffres).";
     setErreurs(e);
-    if (e.nom || e.tel) return;
+    if (e.nom || e.tel) {
+      // Le curseur va dans le premier champ à corriger (clavier et lecteurs d'écran).
+      document.getElementById(e.nom ? "champ-nom" : "champ-tel")?.focus();
+      return;
+    }
     start(async () => {
       const r = await envoyerDemandeAction({
         clientNom: nom,
@@ -140,7 +146,7 @@ export function FormulaireDemande({
       >
         {famillesPresentes.length > 1 && (
           <div className="mb-3">
-            <Choix
+            <ChoixPublic
               libelle="Famille de service"
               options={famillesPresentes.map((f) => ({ valeur: f.valeur, label: f.label }))}
               valeur={famille}
@@ -152,7 +158,7 @@ export function FormulaireDemande({
             />
           </div>
         )}
-        <Choix
+        <ChoixPublic
           libelle="Type de service"
           options={[...typesVisibles.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
           valeur={type}
@@ -189,17 +195,17 @@ export function FormulaireDemande({
                       className="group w-[42%] text-left sm:w-[28%] lg:w-[22%]"
                     >
                       <span
-                        className={`relative block overflow-hidden rounded-[1.25rem] bg-sable transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : ""}`}
+                        className={`relative block overflow-hidden rounded-[1.25rem] bg-sable transition-shadow ${on ? "ring-[3px] ring-action ring-offset-2 ring-offset-lin" : ""}`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
                         <img src={m.photoUrl} alt={m.nom} loading="lazy" draggable={false} className="aspect-[4/5] w-full object-cover" />
                         {on && (
-                          <span className="absolute top-2 right-2 flex size-8 animate-apparition items-center justify-center rounded-full bg-or text-noir shadow-md" aria-hidden>
+                          <span className="absolute top-2 right-2 flex size-8 animate-apparition items-center justify-center rounded-full bg-action text-action-texte shadow-md" aria-hidden>
                             <IconCheck width={18} height={18} strokeWidth={2.4} />
                           </span>
                         )}
                       </span>
-                      <span className={`mt-2 block text-sm leading-snug font-semibold ${on ? "text-or-fonce" : ""}`}>{m.nom}</span>
+                      <span className={`mt-2 block text-sm leading-snug font-semibold ${on ? "text-accent-texte" : ""}`}>{m.nom}</span>
                       {fourchettePrix(m.prixMin, m.prixMax) && <span className="block text-xs text-sourdine">{fourchettePrix(m.prixMin, m.prixMax)}</span>}
                       {fourchetteDuree(m.dureeMin, m.dureeMax) && <span className="block text-xs text-sourdine">{fourchetteDuree(m.dureeMin, m.dureeMax)}</span>}
                     </button>
@@ -224,10 +230,10 @@ export function FormulaireDemande({
                 aria-label={nomJour}
                 onClick={() => setJour(j.valeur)}
                 className={`flex w-[4.5rem] flex-col items-center rounded-2xl border py-2.5 transition-colors ${
-                  on ? "border-noir bg-noir text-white" : "border-trait bg-white text-encre hover:border-or"
+                  on ? "border-marque bg-marque text-white" : "border-champ bg-white text-encre hover:border-marque"
                 }`}
               >
-                <span className={`text-xs capitalize ${on ? "text-or" : "text-sourdine"}`}>{j.weekday}</span>
+                <span className={`text-xs capitalize ${on ? "text-detail" : "text-sourdine"}`}>{j.weekday}</span>
                 <span className="font-display text-[1.7rem] leading-tight font-bold">{j.day}</span>
                 <span className={`text-[11px] ${on ? "text-white/70" : "text-sourdine"}`}>{j.label ?? j.month}</span>
               </button>
@@ -242,7 +248,7 @@ export function FormulaireDemande({
             max={dateMax}
             value={jour}
             onChange={(e) => e.target.value && setJour(e.target.value)}
-            className={`h-11 rounded-full border bg-white px-3 text-sm text-encre ${jourHorsListe ? "border-noir" : "border-trait"}`}
+            className={`h-11 rounded-full border bg-white px-3 text-sm text-encre ${jourHorsListe ? "border-marque" : "border-champ"}`}
           />
         </label>
       </Etape>
@@ -258,10 +264,10 @@ export function FormulaireDemande({
                 aria-pressed={on}
                 onClick={() => setMoment(m.valeur)}
                 className={`flex min-h-[4.75rem] flex-col items-start justify-center gap-0.5 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                  on ? "border-noir bg-noir text-white" : "border-trait bg-white hover:border-or"
+                  on ? "border-marque bg-marque text-white" : "border-champ bg-white hover:border-marque"
                 }`}
               >
-                <span className={on ? "text-or" : "text-or-fonce"} aria-hidden>
+                <span className={on ? "text-detail" : "text-accent-texte"} aria-hidden>
                   {ICONES_MOMENT[m.valeur]}
                 </span>
                 <span className="text-sm font-semibold">{m.label}</span>
@@ -277,6 +283,18 @@ export function FormulaireDemande({
         titre={famille === "ongles" ? "Une personne en particulier ?" : "Une coiffeuse en particulier ?"}
         aide="Les mieux notées sont en premier. Seules celles qui font ce service et travaillent ce jour-là sont proposées."
       >
+        {coiffeuseEcartee && (
+          <div className="mb-3">
+            <Alerte ton="indisponible">
+              {coiffeuseEcartee} n&apos;est pas proposée pour ce service à cette date. Changez de jour pour la retrouver, ou laissez « Peu importe ».
+            </Alerte>
+          </div>
+        )}
+        {coiffeusesPossibles.length === 0 && !coiffeuseEcartee && (
+          <div className="mb-3">
+            <Alerte ton="indisponible">Aucune coiffeuse n&apos;est proposée pour ce service à cette date. Changez de jour, ou envoyez votre demande : le salon vous répond sur WhatsApp.</Alerte>
+          </div>
+        )}
         <div role="group" aria-label="Coiffeuse souhaitée" className="defile-x -mx-4 gap-3 px-4 pb-1">
           {[{ id: "", nom: "Peu importe", photoUrl: null, note: null, nbAvis: 0 }, ...coiffeusesPossibles].map((c) => {
             const on = c.id === coiffeuseValide;
@@ -290,22 +308,22 @@ export function FormulaireDemande({
                 className="group flex w-[5.25rem] flex-col items-center gap-1.5 text-center"
               >
                 <span
-                  className={`relative block size-[4.5rem] overflow-hidden rounded-full transition-shadow ${on ? "ring-[3px] ring-or ring-offset-2 ring-offset-lin" : "ring-1 ring-trait"}`}
+                  className={`relative block size-[4.5rem] overflow-hidden rounded-full transition-shadow ${on ? "ring-[3px] ring-action ring-offset-2 ring-offset-lin" : "ring-1 ring-champ"}`}
                 >
                   {c.id ? (
                     <PhotoCoiffeuse nom={c.nom} photoUrl={c.photoUrl} className="size-full text-[1.6rem]" />
                   ) : (
-                    <span className={`flex size-full items-center justify-center ${on ? "bg-noir text-or" : "bg-or-pale text-or-fonce"}`} aria-hidden>
+                    <span className={`flex size-full items-center justify-center ${on ? "bg-marque text-detail" : "bg-accent-pale text-accent-texte"}`} aria-hidden>
                       <IconInfini width={28} height={28} />
                     </span>
                   )}
                   {on && c.id && (
-                    <span className="absolute inset-0 flex items-center justify-center bg-noir/45 text-or" aria-hidden>
+                    <span className="absolute inset-0 flex items-center justify-center bg-marque/55 text-detail" aria-hidden>
                       <IconCheck width={26} height={26} strokeWidth={2.4} />
                     </span>
                   )}
                 </span>
-                <span className={`text-xs leading-tight font-semibold ${on ? "text-or-fonce" : ""}`}>{c.nom}</span>
+                <span className={`text-xs leading-tight font-semibold ${on ? "text-accent-texte" : ""}`}>{c.nom}</span>
                 {c.id && <NoteCoiffeuse note={c.note} nbAvis={c.nbAvis} />}
               </button>
             );
@@ -314,15 +332,37 @@ export function FormulaireDemande({
       </Etape>
 
       <Etape n={++n} titre="Vos coordonnées">
-        <Champ label="Votre nom" erreur={erreurs.nom}>
-          <input className={classeInput} value={nom} onChange={(e) => (setNom(e.target.value), setErreurs((x) => ({ ...x, nom: undefined })))} autoComplete="name" placeholder="Ex. : Aminata O." />
-        </Champ>
-        <Champ label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Le salon vous confirmera l'heure sur ce numéro.">
-          <input className={classeInput} value={tel} onChange={(e) => (setTel(e.target.value), setErreurs((x) => ({ ...x, tel: undefined })))} type="tel" inputMode="tel" autoComplete="tel" placeholder="70 12 34 56" />
-        </Champ>
-        <Champ label="Précisions (facultatif)" aide="Longueur, couleur… Vous pourrez envoyer la photo du modèle sur WhatsApp juste après.">
-          <input className={classeInput} value={remarque} onChange={(e) => setRemarque(e.target.value)} maxLength={200} />
-        </Champ>
+        <ChampPublic label="Votre nom" erreur={erreurs.nom} id="champ-nom">
+          {(champ) => (
+            <input
+              {...champ}
+              className={classeChamp}
+              value={nom}
+              onChange={(e) => (setNom(e.target.value), setErreurs((x) => ({ ...x, nom: undefined })))}
+              autoComplete="name"
+              enterKeyHint="next"
+              placeholder="Ex. : Aminata O."
+            />
+          )}
+        </ChampPublic>
+        <ChampPublic label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Le salon vous confirmera l'heure sur ce numéro." id="champ-tel">
+          {(champ) => (
+            <input
+              {...champ}
+              className={classeChamp}
+              value={tel}
+              onChange={(e) => (setTel(e.target.value), setErreurs((x) => ({ ...x, tel: undefined })))}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="next"
+              placeholder="70 12 34 56"
+            />
+          )}
+        </ChampPublic>
+        <ChampPublic label="Précisions (facultatif)" aide="Longueur, couleur… Vous pourrez envoyer la photo du modèle sur WhatsApp juste après.">
+          {(champ) => <input {...champ} className={classeChamp} value={remarque} onChange={(e) => setRemarque(e.target.value)} maxLength={200} enterKeyHint="send" />}
+        </ChampPublic>
       </Etape>
 
       {/* Piège à robots : invisible pour les personnes, ignoré par les lecteurs d'écran. */}
@@ -336,13 +376,13 @@ export function FormulaireDemande({
       {/* Barre d'envoi toujours visible : la cliente voit ce qu'elle demande et peut envoyer à tout moment. */}
       <div className="sticky bottom-0 z-20 -mx-4 border-t border-trait bg-lin/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-barre backdrop-blur">
         {erreurs.global && (
-          <p role="alert" className="mb-3 rounded-xl bg-rouge-pale px-3 py-2 text-sm text-rouge">
-            {erreurs.global}
-          </p>
+          <div className="mb-3">
+            <Alerte ton="erreur">{erreurs.global}</Alerte>
+          </div>
         )}
         <p className="mb-2 truncate text-center text-xs text-sourdine">{resume}</p>
-        <Button variant="or" size="lg" className="w-full" loading={enCours} onClick={envoyer}>
-          Envoyer ma demande
+        <Button variant="action" size="lg" className="w-full" loading={enCours} onClick={envoyer}>
+          {enCours ? "Envoi en cours…" : "Envoyer ma demande"}
         </Button>
       </div>
       <p className="mt-4 text-center text-xs text-sourdine">

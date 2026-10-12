@@ -110,9 +110,11 @@ await verifier("L'accueil montre « Notre équipe » avec la photo, et les coord
 
 await verifier("Services : manucure et pédicure sont proposées, avec leurs spécialistes seulement", async () => {
   await cliente.goto(`${BASE}/`);
-  await cliente.getByRole("heading", { name: "Nos services" }).waitFor();
+  await cliente.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   for (const n of ["Manucure", "Pédicure"]) await cliente.getByRole("link", { name: n, exact: true }).waitFor();
   await cliente.goto(`${BASE}/reserver`);
+  // Le formulaire arrive après l'enveloppe de la page (rendu progressif) : on l'attend avant de compter.
+  await cliente.getByRole("group", { name: "Coiffeuse souhaitée" }).waitFor();
   const tous = await cliente.getByRole("group", { name: "Coiffeuse souhaitée" }).getByRole("button").count();
   await cliente.getByRole("button", { name: "Ongles", exact: true }).click();
   await cliente.getByRole("button", { name: "Manucure", exact: true }).click();
@@ -135,7 +137,10 @@ await verifier("Une coiffeuse choisie depuis « Notre équipe » est présélect
   await groupe.waitFor();
   const choisie = groupe.getByRole("button", { pressed: true });
   if ((await choisie.count()) !== 1) throw new Error("aucune coiffeuse présélectionnée");
-  if ((await choisie.first().getAttribute("data-nom")) === "Peu importe") throw new Error("« Peu importe » est choisi");
+  if ((await choisie.first().getAttribute("data-nom")) === "Peu importe") {
+    // Coiffeuse en congé ce jour-là (selon le jour où le test tourne) : la cliente doit en être informée, pas laissée sans explication.
+    await cliente.getByRole("status").filter({ hasText: /n.est pas proposée/ }).waitFor({ timeout: 5000 });
+  }
 });
 
 await verifier("La gérante ajoute deux vidéos (adresses https) liées à un modèle", async () => {
@@ -254,7 +259,7 @@ await verifier("Notre équipe : les photos sont rondes ; « Tout voir » ouvre l
   await cliente.goto(`${BASE}/`);
   await cliente.getByRole("heading", { name: "Notre équipe" }).waitFor();
   const formes = await cliente.evaluate(() =>
-    [...document.querySelectorAll("#titre-equipe ~ ul img, #titre-equipe ~ ul [role='img']")].map((e) => {
+    [...document.querySelectorAll("[aria-labelledby='titre-equipe'] ul img, [aria-labelledby='titre-equipe'] ul [role='img']")].map((e) => {
       const r = e.getBoundingClientRect();
       return Math.abs(r.width - r.height) < 1 && parseFloat(getComputedStyle(e).borderTopLeftRadius) >= r.width / 2 - 1;
     }),
@@ -263,7 +268,10 @@ await verifier("Notre équipe : les photos sont rondes ; « Tout voir » ouvre l
   await cliente.getByRole("link", { name: "Tout voir" }).click();
   await cliente.waitForURL(/\/realisations$/);
   await cliente.getByRole("heading", { name: "Nos réalisations" }).waitFor();
-  if ((await cliente.locator("main:visible ul img").count()) < 1) throw new Error("aucune photo dans la bibliothèque");
+  // Les photos arrivent après l'enveloppe de la page (rendu progressif) : on les attend.
+  await cliente.locator("main:visible ul img").first().waitFor({ timeout: 10000 }).catch(() => {
+    throw new Error("aucune photo dans la bibliothèque");
+  });
   await largeurOk(cliente, "réalisations");
 });
 
