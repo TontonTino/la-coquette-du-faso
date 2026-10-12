@@ -30,7 +30,7 @@ describe("thème des salons", () => {
 
   it("expose les rôles sous forme de variables CSS", () => {
     const v = variablesCss(THEME_PAR_DEFAUT) as Record<string, string>;
-    expect(v["--color-marque"]).toBe("#542638");
+    expect(v["--color-marque"]).toBe("#3e2a22");
     expect(v["--color-action"]).toBe("#a44e3a");
   });
 });

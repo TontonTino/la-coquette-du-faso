@@ -26,12 +26,12 @@ export interface ThemeSalon {
 
 /** « Warm beauty, bold digital » : thème de La Coquette du Faso et valeurs par défaut. */
 export const THEME_PAR_DEFAUT: ThemeSalon = {
-  marque: "#542638",
+  marque: "#3e2a22",
   action: "#a44e3a",
   actionFort: "#964733",
   actionTexte: "#ffffff",
   accentTexte: "#a44e3a",
-  accentPale: "#f6e4dd",
+  accentPale: "#f3e8da",
   detail: "#c8a44d",
 };
 
