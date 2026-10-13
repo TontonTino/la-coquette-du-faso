@@ -4,15 +4,17 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HabillagePublic } from "@/components/public/Habillage";
-import { Squelette } from "@/components/public/formulaire";
+import { Alerte, Squelette } from "@/components/public/formulaire";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconCheck, IconWhatsApp } from "@/components/ui/icons";
 import { libelleMoment } from "@/lib/salon/regles";
 import { lienWhatsApp } from "@/lib/salon/whatsapp";
-import { capitalize, formatDateLong } from "@/lib/time";
+import { capitalize, formatDateLong, formatFcfa } from "@/lib/time";
+import { acomptePourSuivi } from "@/server/salon/acompte";
 import { suiviDemande } from "@/server/salon/service";
 import { Actualiser } from "./Actualiser";
 import { NoterCoiffeuses } from "./NoterCoiffeuses";
+import { PayerAcompte } from "./PayerAcompte";
 
 export const metadata: Metadata = { title: "Suivi de ma demande", robots: { index: false, follow: false } };
 
@@ -45,6 +47,8 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const d = await suiviDemande(ref.toUpperCase());
   if (!d) notFound();
   const e = ETATS[d.statut] ?? ETATS.demandee;
+  const ac = await acomptePourSuivi(d.reference);
+  const acompteOuvert = ["demandee", "prevue"].includes(d.statut);
   const photo = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, voici la photo du modèle pour ma demande ${d.reference} (${d.prenom}).`) : null;
   const etape = d.statut === "demandee" ? 0 : ["prevue"].includes(d.statut) ? 1 : ["en_attente", "en_cours", "terminee"].includes(d.statut) ? 2 : -1;
   const contact = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, c'est ${d.prenom}, au sujet de ma demande ${d.reference}.`) : null;
@@ -52,7 +56,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
 
   return (
     <div>
-      {d.statut === "demandee" && <Actualiser />}
+      {(d.statut === "demandee" || (acompteOuvert && ac.enAttente)) && <Actualiser />}
       <p className="text-sm text-sourdine">
         Bonjour {d.prenom}, voici où en est votre demande à <span className="font-medium text-encre">{d.salonNom}</span>.
       </p>
@@ -112,6 +116,29 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
         {d.coiffeuses.length > 0 && <Ligne terme="Avec" valeur={d.coiffeuses.join(" et ")} />}
         <Ligne terme="Référence" valeur={d.reference} />
       </dl>
+
+      {ac.actif && (ac.paye || acompteOuvert) && (
+        <section className="mt-4 rounded-2xl bg-white p-4 shadow-carte" aria-label="Acompte">
+          {ac.mode === "test" && (
+            <p className="mb-3 rounded-xl bg-accent-pale px-3 py-2 text-xs font-medium text-accent-texte">Mode test : aucun argent réel n&apos;est prélevé.</p>
+          )}
+          {ac.paye ? (
+            <Alerte ton="succes">Acompte de {formatFcfa(ac.paye.montant)} reçu. Merci !</Alerte>
+          ) : ac.enAttente ? (
+            <>
+              <Alerte ton="info">Nous vérifions votre paiement. Si vous venez de payer, patientez un instant : cette page se met à jour.</Alerte>
+              <PayerAcompte reference={d.reference} libelle="Payer à nouveau l'acompte" />
+            </>
+          ) : (
+            <>
+              <p className="text-sm">
+                Le salon demande un acompte de <span className="font-semibold">{formatFcfa(ac.montant)}</span> pour garder votre créneau.
+              </p>
+              <PayerAcompte reference={d.reference} libelle={`Payer l'acompte · ${formatFcfa(ac.montant)}`} />
+            </>
+          )}
+        </section>
+      )}
 
       {d.statut === "demandee" && photo && (
         <a href={photo} className={buttonClasses("action", "md", "mt-5 w-full")}>

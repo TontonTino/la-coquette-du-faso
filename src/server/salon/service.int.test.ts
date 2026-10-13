@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -41,7 +41,7 @@ suite("service salon (PostgreSQL)", () => {
   });
 
   beforeEach(async () => {
-    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence, modele, avis, video CASCADE");
+    await admin.unsafe("TRUNCATE salon, utilisateur, session, coiffeuse, absence, prestation, affectation, categorie, competence, modele, avis, video, acompte CASCADE");
     const [sa] = await admin`INSERT INTO salon (nom, slug) VALUES ('Salon A', 'salon-a') RETURNING id`;
     const [sb] = await admin`INSERT INTO salon (nom) VALUES ('Salon B') RETURNING id`;
     const [ga] = await admin`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES (${sa.id}, 'gerante-a', 'Gérante A', 'gerante', 'x') RETURNING id`;
@@ -508,6 +508,118 @@ suite("service salon (PostgreSQL)", () => {
       adresse: "1200 logements",
       horaires: "Tous les jours, de 6 h 30 à 23 h",
       carteUrl: "https://www.google.com/maps?q=12.37,-1.50",
+    });
+  });
+  describe("acompte en ligne (PayDunya simulé)", () => {
+    const CONFIG = { masterKey: "m", privateKey: "p", token: "t", mode: "test" as const, base: "https://exemple.test" };
+    type Ac = typeof import("./acompte");
+    let ac: Ac;
+    let jetons: string[];
+    let etatDe: Record<string, import("@/server/paiement/paydunya").EtatFacture>;
+    let dep: import("./acompte").Dependances;
+
+    beforeEach(async () => {
+      ac = await import("./acompte");
+      jetons = [];
+      etatDe = {};
+      dep = {
+        config: CONFIG,
+        montant: 2000,
+        creer: async () => {
+          const jeton = `jeton-${jetons.length + 1}`;
+          jetons.push(jeton);
+          return { url: `https://paiement.exemple.test/${jeton}`, jeton };
+        },
+        etat: async (_c, jeton) => etatDe[jeton] ?? { statut: "pending", montant: null, reference: null },
+      };
+    });
+
+    const nouvelleDemande = async () => {
+      const d = await svc.creerDemande("salon-a", demande({ jour: "2026-10-13" }), NOW);
+      if (!d.ok) throw new Error(d.erreur);
+      return d.valeur.reference;
+    };
+
+    it("éteint sans clés ou sans montant : rien ne change pour la cliente", async () => {
+      const ref = await nouvelleDemande();
+      expect(await ac.acomptePourSuivi(ref, { ...dep, config: null })).toMatchObject({ actif: false });
+      expect(await ac.acomptePourSuivi(ref, { ...dep, montant: 0 })).toMatchObject({ actif: false });
+      expect(await ac.lancerAcompte(ref, "https://site.test", { ...dep, config: null })).toMatchObject({ ok: false });
+      expect(jetons).toEqual([]);
+    });
+
+    it("facture créée, puis payée seulement quand PayDunya le confirme", async () => {
+      const ref = await nouvelleDemande();
+      const r = await ac.lancerAcompte(ref, "https://site.test", dep);
+      expect(r).toEqual({ ok: true, valeur: { url: "https://paiement.exemple.test/jeton-1" } });
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ actif: true, montant: 2000, mode: "test", paye: null, enAttente: true });
+      expect((await svc.demandesEnAttente(secA))[0].acomptePaye).toBeNull();
+
+      etatDe["jeton-1"] = { statut: "completed", montant: 2000, reference: ref };
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ paye: { montant: 2000, mode: "test" }, enAttente: false });
+      expect((await svc.demandesEnAttente(secA))[0].acomptePaye).toEqual({ montant: 2000, mode: "test" });
+      // Plus de seconde facture une fois payé
+      expect(await ac.lancerAcompte(ref, "https://site.test", dep)).toMatchObject({ ok: false, erreur: expect.stringMatching(/déjà payé/) });
+    });
+
+    it("ne croit pas une facture dont le montant ou la référence ne correspondent pas", async () => {
+      const ref = await nouvelleDemande();
+      await ac.lancerAcompte(ref, "https://site.test", dep);
+      etatDe["jeton-1"] = { statut: "completed", montant: 100, reference: ref };
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ paye: null, enAttente: true });
+      etatDe["jeton-1"] = { statut: "completed", montant: 2000, reference: "AUTREREF" };
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ paye: null, enAttente: true });
+    });
+
+    it("facture annulée : la cliente peut réessayer ; deux paiements : le second est un doublon", async () => {
+      const ref = await nouvelleDemande();
+      await ac.lancerAcompte(ref, "https://site.test", dep);
+      etatDe["jeton-1"] = { statut: "cancelled", montant: 2000, reference: ref };
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ paye: null, enAttente: false });
+      await ac.lancerAcompte(ref, "https://site.test", dep);
+      await ac.lancerAcompte(ref, "https://site.test", dep);
+      etatDe["jeton-2"] = { statut: "completed", montant: 2000, reference: ref };
+      etatDe["jeton-3"] = { statut: "completed", montant: 2000, reference: ref };
+      expect(await ac.acomptePourSuivi(ref, dep)).toMatchObject({ paye: { montant: 2000 } });
+      const lignes = await admin`SELECT statut FROM acompte ORDER BY jeton`;
+      expect(lignes.map((l) => l.statut)).toEqual(["annule", "doublon", "paye"]);
+    });
+
+    it("refuse l'acompte d'une demande refusée, inconnue, et limite les essais", async () => {
+      const ref = await nouvelleDemande();
+      expect(await ac.lancerAcompte("pas-une-ref", "https://site.test", dep)).toMatchObject({ ok: false });
+      expect(await ac.lancerAcompte("AAAAAAAA", "https://site.test", dep)).toMatchObject({ ok: false });
+      for (let i = 0; i < 5; i++) expect((await ac.lancerAcompte(ref, "https://site.test", dep)).ok).toBe(true);
+      expect(await ac.lancerAcompte(ref, "https://site.test", dep)).toMatchObject({ ok: false, erreur: expect.stringMatching(/Trop d'essais/) });
+      const [{ id }] = await svc.demandesEnAttente(secA);
+      await svc.refuserDemande(secA, id, "Complet");
+      expect(await ac.lancerAcompte(ref, "https://site.test", dep)).toMatchObject({ ok: false, erreur: expect.stringMatching(/plus ouverte/) });
+    });
+
+    it("si PayDunya est en panne, la cliente voit un message simple et rien n'est enregistré", async () => {
+      const ref = await nouvelleDemande();
+      const { ErreurPaiement } = await import("@/server/paiement/paydunya");
+      const r = await ac.lancerAcompte(ref, "https://site.test", {
+        ...dep,
+        creer: async () => {
+          throw new ErreurPaiement("PayDunya injoignable");
+        },
+      });
+      expect(r).toMatchObject({ ok: false, erreur: expect.stringMatching(/momentanément indisponible/) });
+      expect(await admin`SELECT 1 FROM acompte`).toHaveLength(0);
+    });
+
+    it("un acompte payé apparaît sur le rendez-vous confirmé", async () => {
+      const ref = await nouvelleDemande();
+      await ac.lancerAcompte(ref, "https://site.test", dep);
+      etatDe["jeton-1"] = { statut: "completed", montant: 2000, reference: ref };
+      await ac.acomptePourSuivi(ref, dep);
+      const [{ id }] = await svc.demandesEnAttente(secA);
+      const conf = await svc.confirmerDemande(secA, id, { jour: "2026-10-13", heure: "10:00", dureeMin: 120, coiffeuseIds: [c.awa] }, NOW);
+      if (!conf.ok) throw new Error(conf.erreur);
+      const j = await svc.journee(secA, "2026-10-13", NOW);
+      const toutes = [...j.aVenir, ...j.attente, ...j.enCours].find((x) => x.clientNom.startsWith("Aminata"));
+      expect(toutes?.acomptePaye).toEqual({ montant: 2000, mode: "test" });
     });
   });
 });

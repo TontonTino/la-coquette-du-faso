@@ -38,8 +38,8 @@ export function Vide({ children }: { children: ReactNode }) {
   return <p className="rounded-xl border border-dashed border-noir/15 px-3 py-4 text-center text-sm text-sourdine">{children}</p>;
 }
 
-export function Pastille({ ton, children }: { ton: "or" | "gris" | "rouge" | "indigo"; children: ReactNode }) {
-  const tons = { or: "bg-or-pale text-or-fonce", gris: "bg-atelier text-encre", rouge: "bg-rouge-pale text-rouge", indigo: "bg-indigo-pale text-indigo" };
+export function Pastille({ ton, children }: { ton: "or" | "gris" | "rouge" | "indigo" | "vert"; children: ReactNode }) {
+  const tons = { or: "bg-or-pale text-or-fonce", gris: "bg-atelier text-encre", rouge: "bg-rouge-pale text-rouge", indigo: "bg-indigo-pale text-indigo", vert: "bg-[#dff3e8] text-[#196842]" };
   return <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap ${tons[ton]}`}>{children}</span>;
 }
 

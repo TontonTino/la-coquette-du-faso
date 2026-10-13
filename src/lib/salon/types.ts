@@ -72,6 +72,14 @@ export interface Prestation {
   prixPaye: number | null;
   paiement: Paiement | null;
   coiffeuseIds: string[];
+  /** Acompte payé en ligne (confirmé par PayDunya), s'il y en a un. */
+  acomptePaye?: AcomptePaye | null;
+}
+
+export interface AcomptePaye {
+  montant: number;
+  /** « test » = paiement fictif, aucun argent réel. */
+  mode: "test" | "production";
 }
 
 /** Absences imprévues du jour : identifiants des coiffeuses absentes. */

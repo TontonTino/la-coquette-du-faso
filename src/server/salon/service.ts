@@ -28,7 +28,7 @@ import {
   verifierVideo,
 } from "@/lib/salon/regles";
 import { randomBytes } from "node:crypto";
-import type { Categorie, Coiffeuse, Famille, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut, Video } from "@/lib/salon/types";
+import type { AcomptePaye, Categorie, Coiffeuse, Famille, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut, Video } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
 import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
 
@@ -98,6 +98,8 @@ interface LignePrestation {
   prix_paye: number | null;
   paiement: Paiement | null;
   coiffeuse_ids: string[];
+  acompte_montant: number | null;
+  acompte_mode: "test" | "production" | null;
 }
 
 function versPrestation(l: LignePrestation): Prestation {
@@ -116,6 +118,7 @@ function versPrestation(l: LignePrestation): Prestation {
     prixPaye: l.prix_paye,
     paiement: l.paiement,
     coiffeuseIds: l.coiffeuse_ids ?? [],
+    acomptePaye: l.acompte_montant !== null && l.acompte_mode ? { montant: l.acompte_montant, mode: l.acompte_mode } : null,
   };
 }
 
@@ -163,6 +166,8 @@ async function donneesDuJour(ctx: Ctx, jour: Jour) {
     sql<LignePrestation[]>`
       SELECT p.id, p.origine, p.statut, p.client_nom, p.client_tel, p.modele, p.categorie_id, p.jour, p.debut, p.duree_min,
              p.arrivee, p.prix_paye, p.paiement,
+             (SELECT ac.montant FROM acompte ac WHERE ac.prestation_id = p.id AND ac.statut = 'paye') AS acompte_montant,
+             (SELECT ac.mode FROM acompte ac WHERE ac.prestation_id = p.id AND ac.statut = 'paye') AS acompte_mode,
              COALESCE(array_agg(a.coiffeuse_id ORDER BY a.coiffeuse_id) FILTER (WHERE a.coiffeuse_id IS NOT NULL), '{}') AS coiffeuse_ids
       FROM prestation p
       LEFT JOIN affectation a ON a.prestation_id = p.id AND a.salon_id = p.salon_id
@@ -587,6 +592,7 @@ export interface Demande {
   recueLe: string;
   dureeMin: number;
   modele: { nom: string; photoUrl: string } | null;
+  acomptePaye: AcomptePaye | null;
 }
 
 export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
@@ -596,10 +602,13 @@ export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
       id: string; reference: string; client_nom: string; client_tel: string; categorie_id: string | null; categorie: string | null;
       jour: string; souhait_moment: Moment | null; cs_id: string | null; cs_nom: string | null; modele: string | null; cree_le: Date;
       duree_min: number; m_id: string | null; m_nom: string | null; m_maj: Date | null;
+      acompte_montant: number | null; acompte_mode: "test" | "production" | null;
     }[]
   >`
     SELECT p.id, p.reference, p.client_nom, p.client_tel, p.categorie_id, k.nom AS categorie, p.jour, p.souhait_moment,
-           c.id AS cs_id, c.nom AS cs_nom, p.modele, p.cree_le, p.duree_min, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj
+           c.id AS cs_id, c.nom AS cs_nom, p.modele, p.cree_le, p.duree_min, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj,
+           (SELECT ac.montant FROM acompte ac WHERE ac.prestation_id = p.id AND ac.statut = 'paye') AS acompte_montant,
+           (SELECT ac.mode FROM acompte ac WHERE ac.prestation_id = p.id AND ac.statut = 'paye') AS acompte_mode
     FROM prestation p
     LEFT JOIN modele m ON m.id = p.modele_id AND m.salon_id = p.salon_id
     LEFT JOIN categorie k ON k.id = p.categorie_id AND k.salon_id = p.salon_id
@@ -620,6 +629,7 @@ export async function demandesEnAttente(ctx: Ctx): Promise<Demande[]> {
     recueLe: r.cree_le.toISOString(),
     dureeMin: r.duree_min,
     modele: r.m_id ? { nom: r.m_nom!, photoUrl: urlPhoto(r.m_id, r.m_maj!) } : null,
+    acomptePaye: r.acompte_montant !== null && r.acompte_mode ? { montant: r.acompte_montant, mode: r.acompte_mode } : null,
   }));
 }
 

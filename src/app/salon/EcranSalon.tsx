@@ -28,6 +28,12 @@ import {
 } from "./actions";
 import { Carte, Champ, Choix, classeInput, Pastille, Section, Vide } from "./ui";
 
+/** Étiquette « acompte payé » ; un paiement de test est signalé comme tel. */
+function PastilleAcompte({ acompte }: { acompte: { montant: number; mode: "test" | "production" } | null | undefined }) {
+  if (!acompte) return null;
+  return <Pastille ton="vert">Acompte payé · {formatFcfa(acompte.montant)}{acompte.mode === "test" ? " (test)" : ""}</Pastille>;
+}
+
 type Ecran =
   | { type: "liste" }
   | { type: "rdv"; carte?: CartePrestation }
@@ -163,6 +169,11 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
                     <p className="font-semibold">{d.clientNom}</p>
                     <Pastille ton="or">En ligne</Pastille>
                   </div>
+                  {d.acomptePaye && (
+                    <p className="mt-1">
+                      <PastilleAcompte acompte={d.acomptePaye} />
+                    </p>
+                  )}
                   <p className="text-sm font-medium">
                     {capitalize(formatDateMedium(d.jour))}, {libelleMoment(d.moment).toLowerCase()}
                   </p>
@@ -203,6 +214,11 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
                 <div className="min-w-0">
                   <p className="font-semibold">{c.clientNom}</p>
                   <p className="text-sm text-sourdine">{decrire(c)}</p>
+                  {c.acomptePaye && (
+                    <p className="mt-1">
+                      <PastilleAcompte acompte={c.acomptePaye} />
+                    </p>
+                  )}
                 </div>
                 {c.origine === "rendez_vous" ? <Pastille ton="or">RDV {c.heureDebut}</Pastille> : <Pastille ton="gris">Sans RDV</Pastille>}
               </div>
@@ -270,6 +286,11 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
                   {formatDuration(c.dureeMin)}, {qui(c)}
                 </p>
                 {(c.categorie || c.modele) && <p className="text-sm text-sourdine">{decrire(c)}</p>}
+                {c.acomptePaye && (
+                  <p className="mt-1">
+                    <PastilleAcompte acompte={c.acomptePaye} />
+                  </p>
+                )}
                 {c.aReattribuer.length > 0 && (
                   <p className="mt-1 text-sm font-medium text-rouge">{c.aReattribuer.join(" + ")} absente : à réattribuer</p>
                 )}
@@ -302,7 +323,7 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
                   className={lienAction}
                   disabled={enCours}
                   onClick={() => {
-                    if (window.confirm(`Annuler le rendez-vous de ${c.clientNom} ?`)) lancer(() => annulerAction(c.id), "Rendez-vous annulé : créneau libéré");
+                    if (window.confirm(`Annuler le rendez-vous de ${c.clientNom} ?${c.acomptePaye ? ` Elle a payé un acompte de ${formatFcfa(c.acomptePaye.montant)} : pensez à le lui rembourser si besoin.` : ""}`)) lancer(() => annulerAction(c.id), "Rendez-vous annulé : créneau libéré");
                   }}
                 >
                   Annuler
@@ -777,6 +798,11 @@ function FormRefuserDemande({
   return (
     <div>
       <EnTete titre="Refuser la demande" sousTitre={`${demande.clientNom} · ${capitalize(formatDateMedium(demande.jour))}`} onRetour={onFini} />
+      {demande.acomptePaye && (
+        <p className="mb-4 rounded-2xl bg-or-pale px-4 py-3 text-sm text-or-fonce">
+          Cette cliente a payé un acompte de {formatFcfa(demande.acomptePaye.montant)}{demande.acomptePaye.mode === "test" ? " (test)" : ""}. Si vous refusez, pensez à le lui rembourser depuis votre compte PayDunya.
+        </p>
+      )}
       <Champ groupe label="Motif (visible par la cliente)">
         <Choix libelle="Motif" options={MOTIFS.map((m) => ({ valeur: m, label: m }))} valeur={motif} onChange={setMotif} />
       </Champ>
