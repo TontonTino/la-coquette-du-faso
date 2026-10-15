@@ -16,7 +16,7 @@ export function RealisationsSalon({ slug, base }: { slug: string; base: string }
         Accueil
       </Link>
       <h1 className="font-display text-[2.5rem] leading-[0.95] font-bold">Nos réalisations</h1>
-      <p className="mt-3 text-sm text-sourdine">Les coiffures réalisées au salon. Touchez un modèle pour le demander.</p>
+      <p className="mt-3 text-sm text-sourdine">Les coiffures réalisées au salon. Touchez un modèle pour le réserver.</p>
       <Suspense fallback={<div className="mt-6 h-96 animate-pulse rounded-3xl bg-sable" />}>
         <Bibliotheque slug={slug} base={base} />
       </Suspense>

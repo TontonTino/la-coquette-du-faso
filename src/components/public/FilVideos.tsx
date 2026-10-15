@@ -229,7 +229,7 @@ function Carte({
             href={modele ? `${base}/reserver?modele=${modele.id}` : `${base}/reserver`}
             className="pointer-events-auto mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-or px-4 text-sm font-semibold text-noir hover:bg-or/90"
           >
-            {modele ? "Je veux cette coiffure" : "Demander un rendez-vous"}
+            {modele ? "Je veux cette coiffure" : "Réserver un rendez-vous"}
           </Link>
         </div>
       </div>

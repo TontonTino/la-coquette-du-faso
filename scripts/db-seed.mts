@@ -39,6 +39,8 @@ function nettoyerUrl(url: string): string {
 // Types de coiffure et spécialités fictifs (démo) : la gérante saisira les vrais dans l'onglet Équipe.
 const DEMO_TYPES = ["Tresses", "Braids", "Nattes collées", "Tissage", "Perruque", "Défrisage & brushing"];
 const DEMO_ONGLES = ["Manucure", "Pédicure"];
+// Durées fictives (démo) pour que la réservation en ligne propose des créneaux ; le vrai salon règle les siennes dans Réglages.
+const DEMO_DUREES: Record<string, number> = { Tresses: 180, Braids: 240, "Nattes collées": 120, Tissage: 180, Perruque: 90, "Défrisage & brushing": 120, Manucure: 60, Pédicure: 60 };
 // Une coiffeuse sur cinq fait aussi les ongles (démo).
 const specialitesDemo = (i: number) => [
   DEMO_TYPES[i % 6],
@@ -70,13 +72,15 @@ try {
         (${salon.id}, 'gerante', 'Gérante', 'gerante', ${await hashPassword(pwdGerante)}),
         (${salon.id}, 'secretaire', 'Secrétaire', 'secretaire', ${await hashPassword(pwdSecretaire)})`;
       if (demo) {
+        // Horaires fictifs (démo) : tous les jours de 6 h 30 à 23 h, comme le salon pilote.
+        for (let jour = 0; jour < 7; jour++) await tx`INSERT INTO salon_horaire (salon_id, jour, ouvre_min, ferme_min) VALUES (${salon.id}, ${jour}, 390, 1380)`;
         const typeId = new Map<string, string>();
         for (const nom of DEMO_TYPES) {
-          const [t] = await tx`INSERT INTO categorie (salon_id, nom) VALUES (${salon.id}, ${nom}) RETURNING id`;
+          const [t] = await tx`INSERT INTO categorie (salon_id, nom, duree_min) VALUES (${salon.id}, ${nom}, ${DEMO_DUREES[nom]}) RETURNING id`;
           typeId.set(nom, t.id);
         }
         for (const nom of DEMO_ONGLES) {
-          const [t] = await tx`INSERT INTO categorie (salon_id, nom, famille) VALUES (${salon.id}, ${nom}, 'ongles') ON CONFLICT (salon_id, nom) DO UPDATE SET famille = 'ongles' RETURNING id`;
+          const [t] = await tx`INSERT INTO categorie (salon_id, nom, famille, duree_min) VALUES (${salon.id}, ${nom}, 'ongles', ${DEMO_DUREES[nom]}) ON CONFLICT (salon_id, nom) DO UPDATE SET famille = 'ongles', duree_min = ${DEMO_DUREES[nom]} RETURNING id`;
           typeId.set(nom, t.id);
         }
         for (const [i, [nom, conges]] of DEMO_COIFFEUSES.entries()) {

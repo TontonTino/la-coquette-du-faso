@@ -348,9 +348,12 @@ await verifier("La cliente note sa coiffeuse (4 étoiles) et peut revenir sur so
 
 await verifier("Une référence de prestation non terminée ne permet pas de noter", async () => {
   await cliente.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
+  await cliente.getByRole("button", { name: "Tresses", exact: true }).click();
+  await cliente.getByRole("button", { name: "Demain", exact: true }).click();
+  await cliente.locator("button[data-heure]").first().click();
   await cliente.getByLabel(/^Votre nom/).fill(`Aïcha ${SUFFIXE}`);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(`6${String(Date.now()).slice(-7)}`);
-  await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
+  await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
   await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
   const t = await visible(cliente);
   if (t.includes("Comment était votre coiffure")) throw new Error("la notation est proposée avant la prestation");

@@ -1,7 +1,7 @@
 /**
  * Parcours de bout en bout : un SECOND salon, créé par `npm run salon:creer`, est propre et isolé.
  * Vérifie : page publique à /s/<identifiant> sans aucune trace de La Coquette du Faso (nom, logo, photos),
- * liens qui restent dans le salon, demande d'une cliente, connexion du personnel du nouveau salon,
+ * liens qui restent dans le salon, réservation honnête sans horaires réglés, connexion du personnel du nouveau salon,
  * salon inconnu = page introuvable, la racine = page MIA, et La Coquette du Faso inchangé sous /s/la-coquette-du-faso.
  * Prérequis : base de démo (La Coquette du Faso), application sur :3200, DATABASE_URL = la même base.
  * Usage : DATABASE_URL=... BASE_URL=http://localhost:3200 npm run test:e2e:multi
@@ -59,7 +59,6 @@ const GERANTE = compte("gerante");
 const SECRETAIRE = compte("secretaire");
 
 const p = await nouvellePage();
-let reference = "";
 
 await verifier("Le script crée un salon vide : aucune coiffeuse, aucun modèle, aucune vidéo", async () => {
   if (!/Services créés\s+: 3/.test(sortie)) throw new Error("les 3 services demandés ne sont pas annoncés");
@@ -97,29 +96,23 @@ await verifier("Tous les liens de la page restent dans ce salon", async () => {
   if (!liens.includes(`/s/${SLUG}/reserver`)) throw new Error("pas de lien de réservation");
 });
 
-await verifier("Une cliente demande un rendez-vous dans le nouveau salon", async () => {
+await verifier("Un salon neuf n'a pas réglé ses horaires : la cliente le voit honnêtement et rien n'est inventé", async () => {
   await p.goto(`${BASE}/s/${SLUG}/reserver`);
-  await p.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).waitFor();
   await p.getByRole("button", { name: "Tresses", exact: true }).click();
   await p.getByRole("button", { name: "Demain", exact: true }).click();
-  await p.getByRole("button", { name: /^Matin/ }).click();
+  await p.getByText(/pas encore ouvert la réservation en ligne/).waitFor();
+  if ((await p.locator("button[data-heure]").count()) !== 0) throw new Error("des créneaux sont proposés alors que rien n'est réglé");
+  if (/coquette/i.test(await p.content())) throw new Error("« Coquette » apparaît dans la réservation du nouveau salon");
+  await p.screenshot({ path: `${SHOTS}/02-reserver-nouveau-salon.png`, fullPage: true });
   await p.getByLabel(/^Votre nom/).fill("Cliente Soleil");
   await p.getByLabel("Votre numéro WhatsApp").fill("70 55 66 77");
-  await p.screenshot({ path: `${SHOTS}/02-reserver-nouveau-salon.png`, fullPage: true });
-  await p.getByRole("button", { name: "Envoyer ma demande" }).click();
-  await p.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
-  reference = p.url().split("/").pop();
-  await p.getByRole("heading", { name: "Demande envoyée" }).waitFor();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await p.getByText("Choisissez un créneau libre.").first().waitFor();
+  if (/\/demande\//.test(p.url())) throw new Error("une réservation a été créée sans créneau");
 });
 
-await verifier("Le suivi de la cliente porte le nom et les liens du nouveau salon", async () => {
-  const html = await p.content();
-  if (/coquette/i.test(html)) throw new Error("« Coquette » apparaît dans le suivi");
-  if (!(await p.locator("body").innerText()).includes(NOM_SALON)) throw new Error("nom du salon absent du suivi");
-  await p.screenshot({ path: `${SHOTS}/03-suivi-nouveau-salon.png`, fullPage: true });
-});
-
-await verifier("Le personnel du nouveau salon se connecte et ne voit que sa demande", async () => {
+await verifier("Le personnel du nouveau salon se connecte et ne voit rien venant d'un autre salon", async () => {
   const s = await nouvellePage();
   await s.goto(`${BASE}/connexion`);
   await s.getByLabel("Identifiant").fill(SECRETAIRE.identifiant);
@@ -131,8 +124,8 @@ await verifier("Le personnel du nouveau salon se connecte et ne voit que sa dema
   if (!entete.includes(NOM_SALON)) throw new Error(`en-tête du personnel : « ${entete.replace(/\n/g, " ")} »`);
   if (/coquette/i.test(await s.content())) throw new Error("« Coquette » apparaît chez le personnel du nouveau salon");
   const t = await visible(s);
-  if (!t.includes("Cliente Soleil")) throw new Error("la demande de la cliente n'apparaît pas");
-  if ((t.match(/En ligne/g) ?? []).length !== 1) throw new Error("une autre demande que la sienne est visible");
+  if (t.includes("Cliente Soleil")) throw new Error("une réservation a été créée sans créneau");
+  if (/Demandes en ligne|En ligne/.test(t)) throw new Error("des demandes d'un autre salon sont visibles");
   await s.screenshot({ path: `${SHOTS}/04-secretaire-nouveau-salon.png`, fullPage: true });
   await s.context().close();
 });
@@ -189,6 +182,6 @@ await verifier("Aucune erreur dans la console", async () => {
   if (erreurs.length) throw new Error(erreurs.slice(0, 3).join(" | "));
 });
 
-console.log(`${ok}/${ok + ko} vérifications réussies (salon ${SLUG}, référence ${reference})`);
+console.log(`${ok}/${ok + ko} vérifications réussies (salon ${SLUG})`);
 await browser.close();
 process.exit(ko ? 1 : 0);

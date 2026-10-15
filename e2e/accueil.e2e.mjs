@@ -51,7 +51,7 @@ await verifier("Couverture : titre, photo de l'intérieur et bouton de réservat
   await h1.waitFor();
   if (!/Là où vous vous sentez belle/.test(await h1.innerText())) throw new Error("titre inattendu");
   await p.getByRole("img", { name: /intérieur lumineux du salon/ }).waitFor();
-  const bouton = p.getByRole("link", { name: "Demander un rendez-vous" }).first();
+  const bouton = p.getByRole("link", { name: "Réserver un rendez-vous" }).first();
   const r = await bouton.boundingBox();
   if (!r || r.y + r.height > 844) throw new Error("le bouton principal n'est pas dans la première vue");
   await p.screenshot({ path: `${SHOTS}/01-couverture-390.png` });
@@ -99,7 +99,7 @@ await verifier("Réalisations : le défilement automatique avance, puis s'arrêt
 await verifier("Parcours : une carte de service mène à la réservation avec le type choisi", async () => {
   await p.getByRole("link", { name: "Tresses", exact: true }).click();
   await p.waitForURL(/\/reserver\?type=/);
-  await p.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).waitFor();
 });
 
 await verifier("Parcours : « Tout voir » ouvre la bibliothèque, qui montre aussi les photos du salon", async () => {

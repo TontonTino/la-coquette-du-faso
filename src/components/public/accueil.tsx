@@ -52,7 +52,7 @@ export function Couverture({ vitrine, horaires, base }: { vitrine: Vitrine; hora
           <p className="mt-5 max-w-md text-base leading-relaxed text-white/90">{vitrine.accroche}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link href={`${base}/reserver`} className={buttonClasses("or", "lg", "w-full sm:w-auto")}>
-              Demander un rendez-vous
+              Réserver un rendez-vous
             </Link>
             <a href="#prestations" className="inline-flex min-h-11 items-center justify-center text-sm font-medium text-white underline decoration-detail decoration-2 underline-offset-8">
               Voir les prestations

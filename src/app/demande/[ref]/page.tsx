@@ -17,7 +17,7 @@ import { Actualiser } from "./Actualiser";
 import { NoterCoiffeuses } from "./NoterCoiffeuses";
 import { PayerAcompte } from "./PayerAcompte";
 
-export const metadata: Metadata = { title: "Suivi de ma demande", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Mon rendez-vous", robots: { index: false, follow: false } };
 
 export default function PageSuivi({ params }: PageProps<"/demande/[ref]">) {
   return (
@@ -30,13 +30,13 @@ export default function PageSuivi({ params }: PageProps<"/demande/[ref]">) {
 /** `etiquette` dit l'état en toutes lettres : il ne repose jamais sur la couleur seule. */
 const ETATS: Record<string, { titre: string; texte: string; ton: "attente" | "ok" | "ko"; etiquette: string }> = {
   demandee: { titre: "Demande envoyée", texte: "Le salon va vous confirmer l'heure exacte sur WhatsApp.", ton: "attente", etiquette: "En attente de la réponse du salon" },
-  prevue: { titre: "Rendez-vous confirmé", texte: "Le salon vous attend.", ton: "ok", etiquette: "Confirmé par le salon" },
+  prevue: { titre: "Rendez-vous confirmé", texte: "Votre créneau est réservé. Le salon vous attend.", ton: "ok", etiquette: "Confirmé" },
   en_attente: { titre: "Vous êtes arrivée", texte: "Le salon vous a bien enregistrée.", ton: "ok", etiquette: "Au salon" },
   en_cours: { titre: "Prestation en cours", texte: "", ton: "ok", etiquette: "Au salon" },
   terminee: { titre: "Merci de votre visite !", texte: "À bientôt au salon.", ton: "ok", etiquette: "Terminé" },
   refusee: { titre: "Demande non acceptée", texte: "", ton: "ko", etiquette: "Non acceptée" },
-  annulee: { titre: "Rendez-vous annulé", texte: "Vous pouvez faire une nouvelle demande.", ton: "ko", etiquette: "Annulé" },
-  absente: { titre: "Rendez-vous manqué", texte: "Vous pouvez faire une nouvelle demande.", ton: "ko", etiquette: "Manqué" },
+  annulee: { titre: "Rendez-vous annulé", texte: "Vous pouvez réserver un nouveau créneau.", ton: "ko", etiquette: "Annulé" },
+  absente: { titre: "Rendez-vous manqué", texte: "Vous pouvez réserver un nouveau créneau.", ton: "ko", etiquette: "Manqué" },
   partie: { titre: "Rendez-vous clôturé", texte: "", ton: "ko", etiquette: "Clôturé" },
 };
 
@@ -52,7 +52,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const acompteOuvert = ["demandee", "prevue"].includes(d.statut);
   const photo = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, voici la photo du modèle pour ma demande ${d.reference} (${d.prenom}).`) : null;
   const etape = d.statut === "demandee" ? 0 : ["prevue"].includes(d.statut) ? 1 : ["en_attente", "en_cours", "terminee"].includes(d.statut) ? 2 : -1;
-  const contact = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, c'est ${d.prenom}, au sujet de ma demande ${d.reference}.`) : null;
+  const contact = d.salonWhatsapp ? lienWhatsApp(d.salonWhatsapp, `Bonjour, c'est ${d.prenom}, au sujet de mon rendez-vous ${d.reference}.`) : null;
   const fond = e.ton === "ok" ? "bg-marque text-white" : e.ton === "ko" ? "bg-rouge-pale text-encre" : "bg-white text-encre shadow-carte";
 
   return (
@@ -60,7 +60,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
     <div>
       {(d.statut === "demandee" || (acompteOuvert && ac.enAttente)) && <Actualiser />}
       <p className="text-sm text-sourdine">
-        Bonjour {d.prenom}, voici où en est votre demande à <span className="font-medium text-encre">{d.salonNom}</span>.
+        Bonjour {d.prenom}, voici votre rendez-vous à <span className="font-medium text-encre">{d.salonNom}</span>.
       </p>
       <div className={`relative mt-3 overflow-hidden rounded-[1.75rem] p-6 ${fond}`}>
         {d.statut === "prevue" && (
@@ -83,8 +83,8 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
           </p>
         )}
         {etape >= 0 && (
-          <ol className="mt-6 grid grid-cols-3 gap-2" aria-label="Étapes de votre demande">
-            {["Envoyée", "Confirmée", "Au salon"].map((t, i) => {
+          <ol className="mt-6 grid grid-cols-3 gap-2" aria-label="Étapes de votre rendez-vous">
+            {[d.statut === "demandee" ? "Envoyée" : "Réservée", "Confirmée", "Au salon"].map((t, i) => {
               const fait = i <= etape;
               const clair = e.ton === "ok";
               return (
@@ -111,10 +111,11 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
           </div>
         </div>
       )}
-      <dl className="mt-4 divide-y divide-trait rounded-2xl bg-white shadow-carte" aria-label="Récapitulatif de votre demande">
+      <dl className="mt-4 divide-y divide-trait rounded-2xl bg-white shadow-carte" aria-label="Récapitulatif de votre rendez-vous">
         <Ligne terme="Jour" valeur={capitalize(formatDateLong(d.jour))} />
         <Ligne terme="Heure" valeur={d.heure ? d.heure.replace(":", " h ") : d.moment ? `${libelleMoment(d.moment)}, heure exacte à confirmer` : "Heure exacte à confirmer par le salon"} fort={!!d.heure} />
         {d.categorie && <Ligne terme="Service" valeur={d.categorie} />}
+        {d.dureeMin && d.heure && <Ligne terme="Durée prévue" valeur={dureeLisible(d.dureeMin)} />}
         {d.coiffeuses.length > 0 && <Ligne terme="Avec" valeur={d.coiffeuses.join(" et ")} />}
         <Ligne terme="Référence" valeur={d.reference} />
       </dl>
@@ -157,7 +158,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
       {d.statut === "terminee" && d.aNoter.length > 0 && <NoterCoiffeuses reference={d.reference} coiffeuses={d.aNoter} />}
       {(e.ton === "ko" || d.statut === "terminee") && (
         <Link href={`${base}/reserver`} className={buttonClasses("action", "lg", "mt-5 w-full")}>
-          Faire une nouvelle demande
+          Réserver un autre rendez-vous
         </Link>
       )}
       <p className="mt-5 text-center text-xs text-sourdine">
@@ -169,6 +170,8 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
     </HabillagePublic>
   );
 }
+
+const dureeLisible = (min: number) => (min % 60 === 0 ? `${min / 60} h` : min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`);
 
 function Ligne({ terme, valeur, fort = false }: { terme: string; valeur: string; fort?: boolean }) {
   return (

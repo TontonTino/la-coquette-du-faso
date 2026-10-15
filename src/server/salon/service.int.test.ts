@@ -742,4 +742,127 @@ suite("service salon (PostgreSQL)", () => {
       expect(await svc.creneauxLibresDuSalon("salon-b", JOUR, c.tresses, NOW)).toEqual({ ok: false, erreur: "Salon introuvable." });
     });
   });
+  describe("réservation en ligne avec confirmation immédiate", () => {
+    const semaine = Array.from({ length: 7 }, (_, jour) => ({ jour, ouvert: true, ouvre: "08:00", ferme: "18:00" }));
+    const reglerSalon = async () => {
+      await svc.enregistrerHoraires(A, semaine, 30);
+      await svc.enregistrerService(A, c.tresses, 120, 15000);
+      await svc.enregistrerService(A, c.tissage, 60, null);
+    };
+    const resa = (over: Partial<import("./service").SaisieReservation> = {}) => ({
+      clientNom: "Aminata",
+      clientTel: "70 11 22 33",
+      categorieId: c.tresses,
+      modeleId: null,
+      jour: "2026-10-13",
+      heure: "11:00",
+      coiffeuseSouhaitee: null,
+      remarque: "",
+      piege: "",
+      ...over,
+    });
+    const heures = async (jour: string, categorie = c.tresses) => {
+      const r = await svc.creneauxLibresDuSalon("salon-a", jour, categorie, NOW);
+      return r.ok ? r.valeur.creneaux.map((x) => x.heure) : r.erreur;
+    };
+
+    it("refuse de réserver tant que le salon n'a pas réglé ses horaires et la durée", async () => {
+      expect(await svc.reserverCreneau("salon-a", resa(), NOW)).toEqual({ ok: false, erreur: "Ce salon n'a pas encore réglé ses horaires." });
+      await svc.enregistrerHoraires(A, semaine, 30);
+      expect(await svc.reserverCreneau("salon-a", resa(), NOW)).toEqual({ ok: false, erreur: "La durée de ce service n'est pas encore réglée." });
+      expect((await admin`SELECT count(*)::int AS n FROM prestation`)[0].n).toBe(0);
+    });
+
+    it("confirme tout de suite : rendez-vous prévu, coiffeuse attribuée, créneau et pause retirés", async () => {
+      await reglerSalon();
+      const r = await svc.reserverCreneau("salon-a", resa(), NOW);
+      expect(r.ok).toBe(true);
+      const reference = r.ok ? r.valeur.reference : "";
+      const [p] = await admin`SELECT statut, canal, debut, duree_min, client_tel FROM prestation WHERE reference = ${reference}`;
+      expect(p).toMatchObject({ statut: "prevue", canal: "en_ligne", duree_min: 120, client_tel: "+226 70 11 22 33" });
+      expect(p.debut.toISOString()).toBe("2026-10-13T11:00:00.000Z");
+      const aff = await admin`SELECT coiffeuse_id FROM affectation WHERE active`;
+      expect(aff.map((x) => x.coiffeuse_id)).toEqual([c.awa]);
+      // 11 h-13 h pris + 30 min de pause de chaque côté : 10 h 30 jusqu'à 12 h 59 exclus, 13 h 30 libre.
+      const libre = await heures("2026-10-13");
+      expect(libre).toContain("08:00");
+      expect(libre).toContain("08:30");
+      expect(libre).not.toContain("09:00");
+      expect(libre).not.toContain("13:15");
+      expect(libre).toContain("13:30");
+      const suivi = await svc.suiviDemande(reference);
+      expect(suivi).toMatchObject({ statut: "prevue", heure: "11:00", dureeMin: 120, categorie: "Tresses", coiffeuses: ["Awa"] });
+      // La secrétaire le voit dans la journée, sans rien à confirmer.
+      const j = await svc.journee(secA, "2026-10-13", NOW);
+      expect(JSON.stringify(j)).toContain("Aminata");
+      expect(await svc.demandesEnAttente(secA)).toEqual([]);
+    });
+
+    it("refuse un créneau déjà pris ou trop proche (pause de 30 min) et accepte le suivant", async () => {
+      await reglerSalon();
+      expect((await svc.reserverCreneau("salon-a", resa(), NOW)).ok).toBe(true);
+      const pris = await svc.reserverCreneau("salon-a", resa({ clientTel: "70 44 55 66" }), NOW);
+      expect(pris).toEqual({ ok: false, erreur: "Ce créneau vient d'être pris ou n'est plus proposé. Choisissez-en un autre." });
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "70 44 55 66", heure: "13:15" }), NOW)).ok).toBe(false);
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "70 44 55 66", heure: "13:30" }), NOW)).ok).toBe(true);
+    });
+
+    it("attribue une autre coiffeuse libre, respecte la coiffeuse demandée et refuse quand toutes sont prises", async () => {
+      await reglerSalon();
+      const a = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 01" }), NOW);
+      const b = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 02" }), NOW);
+      expect(a.ok && b.ok).toBe(true);
+      const noms = await admin`SELECT c.nom FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id WHERE a.active ORDER BY c.nom`;
+      expect(noms.map((x) => x.nom)).toEqual(["Awa", "Fatim"]);
+      expect((await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 03" }), NOW)).ok).toBe(false);
+      // Coiffeuse demandée : respectée si libre, refusée sinon.
+      const voulue = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 04", heure: "15:00", coiffeuseSouhaitee: c.fatim }), NOW);
+      expect(voulue.ok).toBe(true);
+      const [{ nom }] = await admin`SELECT c.nom FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id JOIN prestation p ON p.id = a.prestation_id WHERE p.debut = '2026-10-13T15:00:00Z'`;
+      expect(nom).toBe("Fatim");
+      // Plus personne de libre à 15 h pour le tissage une fois Fatim prise ET Awa prise.
+      const awaPrise = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 05", heure: "15:00" }), NOW);
+      expect(awaPrise.ok).toBe(true); // Awa était libre à 15 h
+      const encore = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 00 00 06", heure: "15:00", coiffeuseSouhaitee: c.fatim }), NOW);
+      expect(encore).toMatchObject({ ok: false });
+    });
+
+    it("deux réservations simultanées pour le même créneau : une seule passe", async () => {
+      await reglerSalon();
+      const essais = await Promise.all(
+        Array.from({ length: 6 }, (_, i) => svc.reserverCreneau("salon-a", resa({ clientTel: `70 20 00 0${i}` }), NOW)),
+      );
+      expect(essais.filter((r) => r.ok)).toHaveLength(1);
+      expect((await admin`SELECT count(*)::int AS n FROM affectation WHERE active`)[0].n).toBe(1);
+    });
+
+    it("limite à 3 rendez-vous à venir par numéro, refuse les robots, les heures non proposées, le passé et les autres salons", async () => {
+      await reglerSalon();
+      for (const heure of ["08:00", "11:00", "14:00"]) expect((await svc.reserverCreneau("salon-a", resa({ heure }), NOW)).ok).toBe(true);
+      const quatrieme = await svc.reserverCreneau("salon-a", resa({ heure: "16:00" }), NOW);
+      expect(quatrieme).toMatchObject({ ok: false });
+      expect(quatrieme.ok ? "" : quatrieme.erreur).toMatch(/3 rendez-vous à venir|déjà 3/);
+      expect(await svc.reserverCreneau("salon-a", resa({ clientTel: "70 77 77 77", piege: "http://spam" }), NOW)).toEqual({ ok: false, erreur: "Réservation refusée." });
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "70 77 77 77", heure: "11:07" }), NOW)).ok).toBe(false);
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "70 77 77 77", heure: "07:00" }), NOW)).ok).toBe(false);
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "70 77 77 77", jour: "2026-10-09" }), NOW)).ok).toBe(false);
+      expect(await svc.reserverCreneau("salon-a", resa({ clientTel: "70 77 77 77", categorieId: c.tressesB }), NOW)).toEqual({ ok: false, erreur: "Service inconnu." });
+      expect(await svc.reserverCreneau("salon-b", resa({ clientTel: "70 77 77 77" }), NOW)).toEqual({ ok: false, erreur: "Salon introuvable." });
+      expect((await svc.reserverCreneau("salon-a", resa({ clientTel: "pas un numéro" }), NOW)).ok).toBe(false);
+    });
+
+    it("n'attribue jamais une coiffeuse en congé, absente ou sans la compétence", async () => {
+      await reglerSalon();
+      await svc.basculerAbsence(secA, c.awa, "2026-10-13");
+      // Tresses : seule Awa sait les faire et elle est absente.
+      expect(await heures("2026-10-13")).toEqual([]);
+      expect((await svc.reserverCreneau("salon-a", resa(), NOW)).ok).toBe(false);
+      // Tissage : Fatim reste.
+      const r = await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage }), NOW);
+      expect(r.ok).toBe(true);
+      expect((await admin`SELECT coiffeuse_id FROM affectation WHERE active`)[0].coiffeuse_id).toBe(c.fatim);
+      // Coiffeuse demandée sans la compétence : refusée.
+      expect((await svc.reserverCreneau("salon-a", resa({ categorieId: c.tissage, clientTel: "70 88 88 88", heure: "15:00", coiffeuseSouhaitee: c.clarisse }), NOW)).ok).toBe(false);
+    });
+  });
 });

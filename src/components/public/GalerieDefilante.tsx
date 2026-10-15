@@ -115,7 +115,7 @@ export function GalerieDefilante({ modeles, photos = [], base = "" }: { modeles:
           <span className="mt-0.5 block text-sm text-sourdine">
             {[fourchettePrix(m.prixMin, m.prixMax), fourchetteDuree(m.dureeMin, m.dureeMax)].filter(Boolean).join(", ")}
           </span>
-          <span className="mt-1.5 inline-block text-sm font-medium text-accent-texte underline decoration-detail underline-offset-4">Demander ce modèle</span>
+          <span className="mt-1.5 inline-block text-sm font-medium text-accent-texte underline decoration-detail underline-offset-4">Réserver ce modèle</span>
         </Link>
       </li>
     );

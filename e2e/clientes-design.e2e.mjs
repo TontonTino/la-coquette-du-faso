@@ -38,10 +38,17 @@ const debordement = (p) => p.evaluate(() => document.documentElement.scrollWidth
 
 const p = await page(390);
 
-await verifier("Formulaire : envoyer sans nom ni numéro affiche les erreurs et place le curseur dans le premier champ", async () => {
+await verifier("Formulaire : sans service ni heure, la cliente est guidée ; sans nom ni numéro, les erreurs s'affichent et le curseur va dans le premier champ", async () => {
   await p.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
-  await p.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
-  await p.getByRole("button", { name: "Envoyer ma demande" }).click();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).waitFor();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await p.getByRole("alert").filter({ hasText: "Choisissez d'abord un service." }).waitFor();
+  await p.getByRole("button", { name: "Tresses", exact: true }).click();
+  await p.getByRole("button", { name: "Demain", exact: true }).click();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await p.getByRole("alert").filter({ hasText: "Choisissez un créneau libre." }).waitFor();
+  await p.locator("button[data-heure]").first().click();
+  await p.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
   await p.getByRole("alert").filter({ hasText: "Indiquez votre nom." }).waitFor();
   await p.getByRole("alert").filter({ hasText: /numéro WhatsApp/ }).waitFor();
   const nom = p.getByLabel("Votre nom", { exact: true });
@@ -69,23 +76,23 @@ await verifier("Formulaire : la bordure des champs est lisible (contraste de 3:1
 });
 
 let reference = "";
-await verifier("Formulaire : une demande complète est envoyée et mène à la page de suivi", async () => {
-  await p.getByLabel(/Votre numéro WhatsApp/).fill("70 11 22 33");
-  const envoi = p.getByRole("button", { name: /Envoyer ma demande|Envoi en cours/ });
+await verifier("Formulaire : une réservation complète est confirmée tout de suite et mène à la page de suivi", async () => {
+  await p.getByLabel(/Votre numéro WhatsApp/).fill(`7${String(Date.now()).slice(-7)}`);
+  const envoi = p.getByRole("button", { name: /Confirmer mon rendez-vous|Réservation en cours/ });
   await envoi.click();
   await p.waitForURL(/\/demande\/[A-Z0-9]{8}$/, { timeout: 15000 });
   reference = p.url().split("/").pop();
 });
 
 await verifier("Suivi : l'état est écrit en toutes lettres, avec le salon et un moyen d'écrire au salon", async () => {
-  await p.getByRole("heading", { name: "Demande envoyée" }).waitFor();
-  await p.getByText("En attente de la réponse du salon").waitFor();
-  await p.getByText(/voici où en est votre demande à/).waitFor();
+  await p.getByRole("heading", { name: "Rendez-vous confirmé" }).waitFor();
+  await p.getByText("Confirmé", { exact: true }).waitFor();
+  await p.getByText(/voici votre rendez-vous à/).waitFor();
   const lien = p.getByRole("link", { name: "Écrire au salon" });
   const href = await lien.getAttribute("href");
   if (!href?.includes("wa.me") || !decodeURIComponent(href).includes(reference)) throw new Error(`lien WhatsApp inattendu : ${href}`);
-  await p.getByText(/se met à jour toute seule/).waitFor();
-  await p.getByRole("list", { name: "Étapes de votre demande" }).waitFor();
+  await p.getByText(/Gardez ce lien/).waitFor();
+  await p.getByRole("list", { name: "Étapes de votre rendez-vous" }).waitFor();
   await p.screenshot({ path: `${SHOTS}/suivi-390.png`, fullPage: true });
 });
 
@@ -93,12 +100,12 @@ for (const l of LARGEURS) {
   await verifier(`Largeur ${l} px : /reserver et le suivi sans débordement horizontal`, async () => {
     const q = await page(l);
     await q.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
-    await q.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
+    await q.getByRole("button", { name: "Confirmer mon rendez-vous" }).waitFor();
     let d = await debordement(q);
     if (d > 0) throw new Error(`/reserver déborde de ${d}px`);
     await q.screenshot({ path: `${SHOTS}/reserver-${l}.png`, fullPage: true });
     await q.goto(`${BASE}/demande/${reference}`);
-    await q.getByRole("heading", { name: "Demande envoyée" }).waitFor();
+    await q.getByRole("heading", { name: "Rendez-vous confirmé" }).waitFor();
     d = await debordement(q);
     if (d > 0) throw new Error(`le suivi déborde de ${d}px`);
     await q.screenshot({ path: `${SHOTS}/suivi-${l}.png`, fullPage: true });

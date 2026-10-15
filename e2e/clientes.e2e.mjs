@@ -1,6 +1,6 @@
 /**
- * Parcours de bout en bout phase B : une cliente demande un rendez-vous en ligne, la secrétaire
- * confirme (ou refuse), la cliente voit la réponse. Format téléphone (390 px).
+ * Parcours de bout en bout : une cliente réserve un créneau libre en ligne et le rendez-vous est confirmé
+ * immédiatement ; un créneau pris n'est plus proposé ; deux clientes ne peuvent pas prendre le même créneau. Format téléphone (390 px).
  *
  * Prérequis : base initialisée avec `npm run db:seed -- --demo`, application lancée (`npm start -- -p 3200`).
  * Usage : BASE_URL=http://localhost:3200 MDP_SECRETAIRE=... MDP_GERANTE=... npm run test:e2e:clientes
@@ -53,123 +53,129 @@ async function largeurOk(p, nom) {
 const capture = (p, nom) => p.screenshot({ path: `${SHOTS}/${nom}.png`, fullPage: true });
 const SUFFIXE = Date.now().toString(36).slice(-4);
 const NOM = `Aminata ${SUFFIXE}`;
-const NOM2 = `Rokia ${SUFFIXE}`;
-// Numéro différent à chaque lancement (limite de 3 demandes en attente par numéro).
+// Numéro différent à chaque lancement (limite de 3 rendez-vous à venir par numéro).
 const TEL = `7${String(Date.now()).slice(-7)}`;
 let reference = "";
 let coiffeuseSouhaitee = "";
 
 await verifier("Accueil public : présentation et services", async () => {
   await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
-  await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().waitFor();
+  await cliente.getByRole("link", { name: "Réserver un rendez-vous" }).first().waitFor();
   await cliente.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   await largeurOk(cliente, "accueil");
   await capture(cliente, "01-accueil");
 });
 
-await verifier("Formulaire : le nom et le numéro sont obligatoires", async () => {
-  await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().click();
+await verifier("Formulaire : sans service ni créneau, on est guidée ; le nom et le numéro sont obligatoires", async () => {
+  await cliente.getByRole("link", { name: "Réserver un rendez-vous" }).first().click();
   await cliente.waitForURL(`${BASE}/s/la-coquette-du-faso/reserver`);
-  await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
+  await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await cliente.getByText("Choisissez d'abord un service.").first().waitFor();
+  await cliente.getByRole("button", { name: "Tresses", exact: true }).click();
+  await cliente.getByRole("button", { name: "Demain", exact: true }).click();
+  await cliente.locator("button[data-heure]").first().waitFor();
+  await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await cliente.getByText("Choisissez un créneau libre.").first().waitFor();
+  await cliente.locator("button[data-heure]").first().click();
+  await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
   await cliente.getByText("Indiquez votre nom.").waitFor();
   await cliente.getByText(/numéro WhatsApp \(8 chiffres\)/).waitFor();
 });
 
-await verifier("La cliente envoie sa demande (FR-B01, FR-B02)", async () => {
-  await cliente.getByRole("button", { name: "Tresses", exact: true }).click();
-  await cliente.getByRole("button", { name: "Demain", exact: true }).click();
-  await cliente.getByRole("button", { name: /^Matin/ }).click();
+let heureReservee = "";
+await verifier("La cliente réserve un créneau libre et il est confirmé tout de suite", async () => {
   const groupe = cliente.getByRole("group", { name: "Coiffeuse souhaitée" });
   const premiere = groupe.getByRole("button").nth(1);
   coiffeuseSouhaitee = (await premiere.getAttribute("data-nom")).trim();
   await premiere.click();
+  const creneau = cliente.locator("button[data-heure]").nth(2);
+  await creneau.waitFor();
+  heureReservee = await creneau.getAttribute("data-heure");
+  await creneau.click();
   await cliente.getByLabel(/^Votre nom/).fill(NOM);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
   await cliente.getByLabel("Précisions (facultatif)").fill("Longues, couleur naturelle");
   await largeurOk(cliente, "formulaire");
   await capture(cliente, "02-formulaire");
-  await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
+  await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
   await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
   reference = cliente.url().split("/").pop();
-  await cliente.getByRole("heading", { name: "Demande envoyée" }).waitFor();
+  await cliente.getByRole("heading", { name: "Rendez-vous confirmé" }).waitFor();
 });
 
-await verifier("La page de suivi n'affiche pas le numéro de téléphone (SEC-B02)", async () => {
+await verifier("La page de suivi montre l'heure, la coiffeuse et la durée, sans le numéro de téléphone (SEC-B02)", async () => {
   const t = await visible(cliente);
   if (t.includes(TEL.slice(-4))) throw new Error("numéro visible");
   if (!t.includes(reference)) throw new Error("référence absente");
+  if (!t.includes(heureReservee.replace(":", " h "))) throw new Error(`heure ${heureReservee} absente`);
+  if (!t.includes(coiffeuseSouhaitee)) throw new Error("coiffeuse absente");
+  if (!t.includes("3 h")) throw new Error("durée prévue absente");
   await largeurOk(cliente, "suivi");
-  await capture(cliente, "03-suivi-attente");
+  await capture(cliente, "03-suivi-confirme");
 });
 
-await verifier("La secrétaire voit la demande (FR-B04)", async () => {
+await verifier("Le créneau pris n'est plus proposé avec la même coiffeuse (pause de 30 min comprise)", async () => {
+  const autre = await nouveauTelephone();
+  await autre.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
+  await autre.getByRole("button", { name: "Tresses", exact: true }).click();
+  await autre.getByRole("button", { name: "Demain", exact: true }).click();
+  await autre.locator("button[data-heure]").first().waitFor();
+  await autre.locator(`button[data-nom="${coiffeuseSouhaitee}"]`).click();
+  await autre.locator("button[data-heure]").first().waitFor();
+  const heures = await autre.locator("button[data-heure]").evaluateAll((els) => els.map((e) => e.getAttribute("data-heure")));
+  const min = (h) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3));
+  const debut = min(heureReservee);
+  const fin = debut + 180;
+  const genants = heures.filter((h) => min(h) < fin + 30 && min(h) + 180 + 30 > debut);
+  if (genants.length) throw new Error(`créneaux qui chevauchent ou sans pause : ${genants.join(", ")}`);
+  await autre.context().close();
+});
+
+await verifier("Deux clientes sur le même créneau : la seconde est prévenue et voit d'autres heures", async () => {
+  const a = await nouveauTelephone();
+  const b = await nouveauTelephone();
+  const choisir = async (p, nom, tel) => {
+    await p.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
+    await p.getByRole("button", { name: "Tresses", exact: true }).click();
+    await p.getByRole("button", { name: "Demain", exact: true }).click();
+    await p.locator("button[data-heure]").first().waitFor();
+    await p.locator(`button[data-nom="${coiffeuseSouhaitee}"]`).click();
+    await p.locator("button[data-heure]").first().waitFor();
+    const h = await p.locator("button[data-heure]").last().getAttribute("data-heure");
+    await p.locator(`button[data-heure="${h}"]`).click();
+    await p.getByLabel(/^Votre nom/).fill(nom);
+    await p.getByLabel("Votre numéro WhatsApp").fill(tel);
+    return h;
+  };
+  const h1 = await choisir(a, `Awa ${SUFFIXE}`, `7${String(Date.now() + 1).slice(-7)}`);
+  const h2 = await choisir(b, `Bintou ${SUFFIXE}`, `7${String(Date.now() + 2).slice(-7)}`);
+  if (h1 !== h2) throw new Error("les deux clientes n'ont pas visé le même créneau");
+  await a.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await a.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
+  await b.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
+  await b.getByRole("alert").filter({ hasText: /plus libre|vient d'être pris/ }).waitFor();
+  await b.waitForURL(/\/reserver/);
+  await b.locator("button[data-heure]").first().waitFor();
+  const restantes = await b.locator(`button[data-heure="${h2}"]`).count();
+  if (restantes) throw new Error("le créneau pris est toujours proposé");
+  await capture(b, "04-creneau-pris");
+  await a.context().close();
+  await b.context().close();
+});
+
+await verifier("La secrétaire ne trouve plus rien à confirmer : plus de demandes en ligne", async () => {
   await secretaire.goto(`${BASE}/connexion`);
   await secretaire.getByLabel("Identifiant").fill("secretaire");
   await secretaire.getByLabel("Mot de passe").fill(MDP_SECRETAIRE);
   await secretaire.getByRole("button", { name: "Se connecter" }).click();
   await secretaire.waitForURL(`${BASE}/salon`);
-  await secretaire.getByRole("heading", { name: /Demandes en ligne/ }).waitFor();
-  await secretaire.getByText(NOM, { exact: true }).waitFor();
-  await capture(secretaire, "04-salon-demandes");
-});
-
-await verifier("Confirmation avec la coiffeuse souhaitée et message WhatsApp prêt (FR-B05)", async () => {
-  const carte = secretaire.locator("div.rounded-xl", { hasText: NOM }).filter({ has: secretaire.getByRole("button", { name: "Confirmer" }) });
-  await carte.getByRole("button", { name: "Confirmer" }).click();
-  await secretaire.getByRole("heading", { name: "Confirmer la demande" }).waitFor();
-  await secretaire.getByLabel("Heure exacte").selectOption("10:00");
-  await secretaire.waitForTimeout(800);
-  const choisie = secretaire.getByRole("button", { name: coiffeuseSouhaitee, exact: true });
-  if ((await choisie.getAttribute("aria-pressed")) !== "true") throw new Error(`${coiffeuseSouhaitee} n'est pas présélectionnée`);
-  await largeurOk(secretaire, "confirmer");
-  await capture(secretaire, "05-confirmer");
-  await secretaire.getByRole("button", { name: "Confirmer le rendez-vous" }).click();
-  const lien = secretaire.getByRole("link", { name: "Envoyer sur WhatsApp" });
-  await lien.waitFor();
-  const href = await lien.getAttribute("href");
-  if (!href.startsWith(`https://wa.me/226${TEL}`)) throw new Error(`lien inattendu : ${href.slice(0, 40)}`);
-  if (!decodeURIComponent(href).includes(`/demande/${reference}`)) throw new Error("le lien de suivi manque dans le message");
-  await capture(secretaire, "06-prevenir");
-});
-
-await verifier("La cliente voit son rendez-vous confirmé (FR-B03)", async () => {
-  await cliente.reload();
-  await cliente.getByRole("heading", { name: "Rendez-vous confirmé" }).waitFor();
-  const t = await visible(cliente);
-  if (!t.includes("10 h 00")) throw new Error("heure absente");
-  if (!t.includes(coiffeuseSouhaitee)) throw new Error("coiffeuse absente");
-  await capture(cliente, "07-suivi-confirme");
-});
-
-await verifier("Le rendez-vous apparaît chez la secrétaire et n'est plus une demande", async () => {
-  await secretaire.getByRole("button", { name: "Retour au salon" }).click();
   await secretaire.getByRole("button", { name: "+ Rendez-vous" }).waitFor();
   const t = await visible(secretaire);
-  if (t.includes("Demandes en ligne à traiter") && t.includes(NOM)) throw new Error("toujours dans les demandes");
-});
-
-let reference2 = "";
-await verifier("Refus avec motif, visible par la cliente (FR-B06)", async () => {
-  await cliente.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
-  await cliente.getByLabel(/^Votre nom/).fill(NOM2);
-  await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
-  await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
-  await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
-  reference2 = cliente.url().split("/").pop();
-  await secretaire.reload();
-  const carte = secretaire.locator("div.rounded-xl", { hasText: NOM2 }).filter({ has: secretaire.getByRole("button", { name: "Refuser" }) });
-  await carte.getByRole("button", { name: "Refuser" }).click();
-  await secretaire.getByRole("button", { name: "Complet ce jour-là" }).click();
-  await secretaire.getByRole("button", { name: "Refuser la demande" }).click();
-  await secretaire.getByRole("link", { name: "Envoyer sur WhatsApp" }).waitFor();
-  await cliente.reload();
-  await cliente.getByRole("heading", { name: "Demande non acceptée" }).waitFor();
-  await cliente.getByText("Motif : Complet ce jour-là.").waitFor();
-  await cliente.getByRole("link", { name: "Faire une nouvelle demande" }).waitFor();
+  if (t.includes("Demandes en ligne à traiter")) throw new Error("une demande en attente est affichée");
+  await capture(secretaire, "05-salon");
 });
 
 await verifier("La gérante renseigne le WhatsApp du salon ; l'accueil le propose", async () => {
-  await secretaire.goto(`${BASE}/salon`);
   await secretaire.getByRole("button", { name: "Se déconnecter" }).click();
   await secretaire.waitForURL(`${BASE}/connexion`);
   await secretaire.getByLabel("Identifiant").fill("gerante");
@@ -205,7 +211,7 @@ if (PHOTO) {
     await capture(secretaire, "09-catalogue");
   });
 
-  await verifier("La cliente choisit le modèle sur l'accueil et l'envoie (FR-C04, FR-C05)", async () => {
+  await verifier("La cliente choisit le modèle sur l'accueil et réserve (FR-C04, FR-C05)", async () => {
     await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
     await cliente.getByRole("heading", { name: "Nos réalisations" }).waitFor();
     await capture(cliente, "10-accueil-modeles");
@@ -213,24 +219,17 @@ if (PHOTO) {
     await cliente.waitForURL(/\/reserver\?modele=/);
     const choisi = cliente.getByRole("button", { name: new RegExp(`Nattes et vanilles ${SUFFIXE}`) });
     if ((await choisi.getAttribute("aria-pressed")) !== "true") throw new Error("modèle non présélectionné");
+    await cliente.getByRole("button", { name: "Demain", exact: true }).click();
+    await cliente.locator("button[data-heure]").first().click();
     await cliente.getByLabel(/^Votre nom/).fill(`Fanta ${SUFFIXE}`);
-    await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
+    await cliente.getByLabel("Votre numéro WhatsApp").fill(`7${String(Date.now() + 3).slice(-7)}`);
     await largeurOk(cliente, "formulaire avec modèles");
     await capture(cliente, "11-formulaire-modele");
-    await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
+    await cliente.getByRole("button", { name: "Confirmer mon rendez-vous" }).click();
     await cliente.waitForURL(/\/demande\/[A-Z2-9]{8}$/);
     await cliente.getByText("Modèle choisi").waitFor();
   });
 
-  await verifier("Le salon voit la photo du modèle et la durée proposée", async () => {
-    await secretaire.goto(`${BASE}/salon`);
-    await secretaire.getByAltText(`Nattes et vanilles ${SUFFIXE}`).first().waitFor();
-    const carte = secretaire.locator("div.rounded-xl", { hasText: `Fanta ${SUFFIXE}` }).filter({ has: secretaire.getByRole("button", { name: "Confirmer" }) });
-    await carte.getByRole("button", { name: "Confirmer" }).click();
-    const troisH = secretaire.getByRole("group", { name: "Durée estimée" }).getByRole("button", { name: "3 h", exact: true });
-    if ((await troisH.getAttribute("aria-pressed")) !== "true") throw new Error("durée du modèle non reprise");
-    await capture(secretaire, "12-confirmer-modele");
-  });
 }
 
 await verifier("Une référence inconnue affiche « Page introuvable »", async () => {
@@ -249,5 +248,5 @@ await verifier("Aucune erreur dans la console", async () => {
 });
 
 await browser.close();
-console.log(`\n${ok}/${ok + ko} vérifications réussies (références ${reference}, ${reference2})`);
+console.log(`\n${ok}/${ok + ko} vérifications réussies (référence ${reference})`);
 process.exit(ko ? 1 : 0);

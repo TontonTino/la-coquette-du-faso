@@ -17,8 +17,8 @@ import { salonPublic, type SalonPublic } from "@/server/salon/service";
 const GALERIE_MAX = 40;
 
 const ETAPES = [
-  { titre: "Vous choisissez", texte: "Un modèle en photo ou un type de service, le jour et le moment qui vous arrangent." },
-  { titre: "Le salon vous confirme", texte: "La secrétaire fixe l'heure exacte et vous l'envoie sur WhatsApp." },
+  { titre: "Vous choisissez", texte: "Un modèle en photo ou un type de service, puis le jour qui vous arrange." },
+  { titre: "Vous prenez une heure libre", texte: "Vous voyez les créneaux réellement libres et votre rendez-vous est confirmé tout de suite." },
   { titre: "Vous venez au salon", texte: "Votre coiffeuse vous attend : fini les longues attentes." },
 ];
 
@@ -70,11 +70,11 @@ function Galerie({ modeles, vitrine, base }: { modeles: SalonPublic["modeles"]; 
           Tout voir
         </Link>
       </div>
-      <p className="mt-4 text-sm text-sourdine">{modeles.length > 0 ? "Faites glisser pour voir plus, touchez un modèle pour le demander." : "Les coiffures réalisées au salon. Faites glisser pour voir plus."}</p>
+      <p className="mt-4 text-sm text-sourdine">{modeles.length > 0 ? "Faites glisser pour voir plus, touchez un modèle pour le réserver." : "Les coiffures réalisées au salon. Faites glisser pour voir plus."}</p>
       {/* Les plus récents seulement : la page reste légère même avec des milliers de modèles. */}
       <GalerieDefilante modeles={modeles.slice(0, GALERIE_MAX)} photos={vitrine.realisations} base={base} />
       <Link href={`${base}/reserver`} className={buttonClasses("action", "lg", "mt-6 w-full sm:w-auto")}>
-        Demander un rendez-vous
+        Réserver un rendez-vous
       </Link>
     </section>
   );
@@ -101,7 +101,7 @@ function Etapes() {
 }
 
 const FAMILLES: { valeur: Famille; titre: string; sousTitre: string; ton: "photo" | "terracotta" }[] = [
-  { valeur: "coiffure", titre: "Coiffure", sousTitre: "Choisissez le type de coiffure, vous enverrez votre photo sur WhatsApp ensuite.", ton: "photo" },
+  { valeur: "coiffure", titre: "Coiffure", sousTitre: "Choisissez le type de coiffure, puis une heure libre.", ton: "photo" },
   { valeur: "ongles", titre: "Ongles", sousTitre: "Manucure et pédicure, avec nos spécialistes.", ton: "terracotta" },
 ];
 
@@ -194,7 +194,7 @@ function AppelFinal({ salon, wa, base }: { salon: SalonPublic; wa: string | null
       <h2 className="relative font-display text-[2.4rem] leading-[0.95] font-bold text-balance sm:text-[3rem]">
         Prête pour votre <span className="text-detail">nouveau look</span> ?
       </h2>
-      <p className="relative mt-3 max-w-md text-sm text-white/85">Envoyez votre demande maintenant, le salon vous répond sur WhatsApp.</p>
+      <p className="relative mt-3 max-w-md text-sm text-white/85">Choisissez votre heure maintenant : c’est confirmé tout de suite.</p>
       <div className="relative mt-6 flex flex-col gap-3 sm:flex-row">
         <Link href={`${base}/reserver`} className={buttonClasses("or", "lg", "w-full sm:w-auto")}>
           Réserver ma place

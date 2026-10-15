@@ -7,7 +7,7 @@ import { exigerSalon } from "../slug";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return metadonneesSalon(slug, "Demander un rendez-vous");
+  return metadonneesSalon(slug, "Réserver un rendez-vous");
 }
 
 export default function PageSalon({ params }: PageProps<"/s/[slug]">) {

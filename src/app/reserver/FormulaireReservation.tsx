@@ -5,19 +5,16 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { NoteCoiffeuse, PhotoCoiffeuse } from "@/components/public/Equipe";
 import { Alerte, ChampPublic, ChoixPublic, classeChamp } from "@/components/public/formulaire";
 import { Button } from "@/components/ui/Button";
-import { IconCheck, IconInfini, IconSun, IconSunrise, IconSunset } from "@/components/ui/icons";
-import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES, MOMENTS } from "@/lib/salon/regles";
+import { IconCheck, IconInfini, IconWhatsApp } from "@/components/ui/icons";
+import { fourchetteDuree, fourchettePrix, JOURS_RESERVABLES } from "@/lib/salon/regles";
+import { lienWhatsApp } from "@/lib/salon/whatsapp";
 import type { Famille } from "@/lib/salon/types";
-import { addDays, capitalize, dateChip, formatDateMedium, weekday } from "@/lib/time";
+import { addDays, capitalize, dateChip, formatDateMedium, formatFcfa, weekday } from "@/lib/time";
 import type { SalonPublic } from "@/server/salon/service";
-import { envoyerDemandeAction } from "./actions";
+import { creneauxAction, reserverAction, type CreneauxJour } from "./actions";
 
-const ICONES_MOMENT: Record<string, ReactNode> = {
-  matin: <IconSunrise />,
-  apres_midi: <IconSun />,
-  fin_journee: <IconSunset />,
-  "": <IconInfini />,
-};
+/** « 90 » → « 1 h 30 » */
+const dureeLisible = (min: number) => (min % 60 === 0 ? `${min / 60} h` : min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}`);
 
 const FAMILLES: { valeur: Famille; label: string }[] = [
   { valeur: "coiffure", label: "Coiffure" },
@@ -42,8 +39,8 @@ function Etape({ n, titre, aide, children }: { n: number; titre: string; aide?: 
   );
 }
 
-/** FR-B01 / FR-B02 : formulaire de demande, pensé pour un téléphone et une saisie en une minute. */
-export function FormulaireDemande({
+/** Réservation en ligne : service, jour, créneau libre, coordonnées. Confirmée tout de suite. */
+export function FormulaireReservation({
   salon,
   aujourdhui,
   typeInitial,
@@ -77,13 +74,28 @@ export function FormulaireDemande({
   const famille = type || modeleChoisi ? familleDe(type || null) : familleChoisie;
   const typesVisibles = salon.categories.filter((c) => c.famille === famille);
   const [jour, setJour] = useState(aujourdhui);
-  const [moment, setMoment] = useState<string>("");
+  const [heureChoisie, setHeure] = useState("");
+  const [charge, setCharge] = useState<{ cle: string; donnees: CreneauxJour } | null>(null);
   const [coiffeuse, setCoiffeuse] = useState(coiffeuseInitiale);
   const [nom, setNom] = useState("");
   const [tel, setTel] = useState("");
   const [remarque, setRemarque] = useState("");
   const [piege, setPiege] = useState("");
-  const [erreurs, setErreurs] = useState<{ nom?: string; tel?: string; global?: string }>({});
+  const [erreurs, setErreurs] = useState<{ nom?: string; tel?: string; service?: string; heure?: string; global?: string }>({});
+
+  // Créneaux libres du jour pour le service choisi, calculés par le serveur (jamais devinés ici).
+  const cle = type ? `${jour}|${type}` : "";
+  useEffect(() => {
+    if (!cle) return;
+    let annule = false;
+    creneauxAction(salon.slug, jour, type).then((donnees) => {
+      if (!annule) setCharge({ cle, donnees });
+    });
+    return () => {
+      annule = true;
+    };
+  }, [cle, jour, type, salon.slug]);
+  const creneauxPrets = charge && charge.cle === cle ? charge.donnees : null;
 
   const jours = Array.from({ length: 14 }, (_, i) => {
     const j = addDays(aujourdhui, i);
@@ -98,38 +110,47 @@ export function FormulaireDemande({
   // Coiffeuse choisie (ex. depuis « Notre équipe ») mais non proposée pour ce service ce jour-là : on le dit, sans rien cacher.
   const coiffeuseEcartee = coiffeuse && !coiffeuseValide ? (salon.coiffeuses.find((c) => c.id === coiffeuse)?.nom ?? null) : null;
   const nomType = salon.categories.find((c) => c.id === type)?.nom ?? null;
-  const resume = [
-    modeleChoisi?.nom ?? nomType ?? "Coiffure à préciser",
-    capitalize(formatDateMedium(jour)),
-    MOMENTS.find((m) => m.valeur === moment)?.label ?? null,
-  ]
+  const tousCreneaux = creneauxPrets?.ok ? creneauxPrets.valeur.creneaux : [];
+  const creneaux = coiffeuseValide ? tousCreneaux.filter((c) => c.coiffeuseIds.includes(coiffeuseValide)) : tousCreneaux;
+  const heure = creneaux.some((c) => c.heure === heureChoisie) ? heureChoisie : "";
+  const infos = creneauxPrets?.ok ? creneauxPrets.valeur : null;
+  const contact = salon.whatsapp ? lienWhatsApp(salon.whatsapp, "Bonjour, je voudrais réserver un rendez-vous.") : null;
+  const resume = [modeleChoisi?.nom ?? nomType ?? "Choisissez un service", capitalize(formatDateMedium(jour)), heure ? heure.replace(":", " h ") : null]
     .filter(Boolean)
     .join(", ");
 
   const envoyer = () => {
     const e: typeof erreurs = {};
+    if (!type) e.service = "Choisissez d'abord un service.";
+    else if (!heure) e.heure = "Choisissez un créneau libre.";
     if (nom.trim().length < 2) e.nom = "Indiquez votre nom.";
     if (tel.replace(/\D/g, "").length < 8) e.tel = "Indiquez votre numéro WhatsApp (8 chiffres).";
     setErreurs(e);
-    if (e.nom || e.tel) {
+    if (e.service || e.heure || e.nom || e.tel) {
       // Le curseur va dans le premier champ à corriger (clavier et lecteurs d'écran).
-      document.getElementById(e.nom ? "champ-nom" : "champ-tel")?.focus();
+      if (!e.service && !e.heure) document.getElementById(e.nom ? "champ-nom" : "champ-tel")?.focus();
       return;
     }
     start(async () => {
-      const r = await envoyerDemandeAction(salon.slug, {
+      const r = await reserverAction(salon.slug, {
         clientNom: nom,
         clientTel: tel,
         categorieId: type || null,
         modeleId: modeleChoisi?.id ?? null,
         jour,
-        moment: moment || null,
+        heure,
         coiffeuseSouhaitee: coiffeuseValide || null,
         remarque,
         piege,
       });
       if (r.ok) router.push(`/demande/${r.valeur.reference}`);
-      else setErreurs({ global: r.erreur });
+      else {
+        setErreurs({ global: r.erreur });
+        // Un créneau pris entre-temps : on recharge la liste pour que la cliente en voie d'autres.
+        setHeure("");
+        setCharge(null);
+        creneauxAction(salon.slug, jour, type).then((donnees) => setCharge({ cle, donnees }));
+      }
     });
   };
 
@@ -160,14 +181,21 @@ export function FormulaireDemande({
         )}
         <ChoixPublic
           libelle="Type de service"
-          options={[...typesVisibles.map((c) => ({ valeur: c.id, label: c.nom })), { valeur: "", label: "Je ne sais pas encore" }]}
+          options={typesVisibles.map((c) => ({ valeur: c.id, label: c.nom }))}
           valeur={type}
           onChange={(v) => {
             setType(v);
+            setHeure("");
+            setErreurs((x) => ({ ...x, service: undefined }));
             // Un modèle d'un autre type n'a plus de sens : on le retire.
             if (modeleChoisi && v && modeleChoisi.categorieId !== v) setModele("");
           }}
         />
+        {erreurs.service && (
+          <div className="mt-3">
+            <Alerte ton="erreur">{erreurs.service}</Alerte>
+          </div>
+        )}
         {salon.modeles.length > 0 && (
           <div className="mt-5">
             <p className="mb-2 flex items-baseline justify-between text-sm">
@@ -179,7 +207,7 @@ export function FormulaireDemande({
             </p>
             {modelesVisibles.length === 0 ? (
               <p className="rounded-2xl bg-sable/70 px-4 py-3 text-sm text-sourdine">
-                Pas encore de photo pour ce type. Vous pourrez envoyer la vôtre sur WhatsApp juste après.
+                Pas encore de photo pour ce type de service.
               </p>
             ) : (
               <div ref={rangee} role="group" aria-label="Modèles" className="defile-x relative -mx-4 gap-3 px-4 pb-1">
@@ -228,7 +256,7 @@ export function FormulaireDemande({
                 type="button"
                 aria-pressed={on}
                 aria-label={nomJour}
-                onClick={() => setJour(j.valeur)}
+                onClick={() => (setJour(j.valeur), setHeure(""))}
                 className={`flex w-[4.5rem] flex-col items-center rounded-2xl border py-2.5 transition-colors ${
                   on ? "border-marque bg-marque text-white" : "border-champ bg-white text-encre hover:border-marque"
                 }`}
@@ -247,41 +275,16 @@ export function FormulaireDemande({
             min={aujourdhui}
             max={dateMax}
             value={jour}
-            onChange={(e) => e.target.value && setJour(e.target.value)}
+            onChange={(e) => e.target.value && (setJour(e.target.value), setHeure(""))}
             className={`h-11 rounded-full border bg-white px-3 text-sm text-encre ${jourHorsListe ? "border-marque" : "border-champ"}`}
           />
         </label>
       </Etape>
 
-      <Etape n={++n} titre="À quel moment ?" aide="L'heure exacte vous sera confirmée par le salon.">
-        <div role="group" aria-label="Moment de la journée" className="grid grid-cols-2 gap-2">
-          {[...MOMENTS.map((m) => ({ valeur: m.valeur as string, label: m.label, plage: m.plage })), { valeur: "", label: "Peu importe", plage: "le plus tôt possible" }].map((m) => {
-            const on = m.valeur === moment;
-            return (
-              <button
-                key={m.valeur}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setMoment(m.valeur)}
-                className={`flex min-h-[4.75rem] flex-col items-start justify-center gap-0.5 rounded-2xl border px-4 py-3 text-left transition-colors ${
-                  on ? "border-marque bg-marque text-white" : "border-champ bg-white hover:border-marque"
-                }`}
-              >
-                <span className={on ? "text-detail" : "text-accent-texte"} aria-hidden>
-                  {ICONES_MOMENT[m.valeur]}
-                </span>
-                <span className="text-sm font-semibold">{m.label}</span>
-                <span className={`text-xs ${on ? "text-white/70" : "text-sourdine"}`}>{m.plage}</span>
-              </button>
-            );
-          })}
-        </div>
-      </Etape>
-
       <Etape
         n={++n}
         titre={famille === "ongles" ? "Une personne en particulier ?" : "Une coiffeuse en particulier ?"}
-        aide="Les mieux notées sont en premier. Seules celles qui font ce service et travaillent ce jour-là sont proposées."
+        aide="Les mieux notées sont en premier. Seules celles qui font ce service et travaillent ce jour-là sont proposées. Les heures se mettent à jour."
       >
         {coiffeuseEcartee && (
           <div className="mb-3">
@@ -292,7 +295,7 @@ export function FormulaireDemande({
         )}
         {coiffeusesPossibles.length === 0 && !coiffeuseEcartee && (
           <div className="mb-3">
-            <Alerte ton="indisponible">Aucune coiffeuse n&apos;est proposée pour ce service à cette date. Changez de jour, ou envoyez votre demande : le salon vous répond sur WhatsApp.</Alerte>
+            <Alerte ton="indisponible">Aucune coiffeuse n&apos;est proposée pour ce service à cette date. Changez de jour ou de service.</Alerte>
           </div>
         )}
         <div role="group" aria-label="Coiffeuse souhaitée" className="defile-x -mx-4 gap-3 px-4 pb-1">
@@ -331,6 +334,63 @@ export function FormulaireDemande({
         </div>
       </Etape>
 
+      <Etape
+        n={++n}
+        titre="Quelle heure ?"
+        aide={infos ? `Créneaux libres pour ${nomType ?? "ce service"} · ${dureeLisible(infos.dureeMin)}${infos.prix !== null ? ` · ${formatFcfa(infos.prix)}` : ""}. La réservation est confirmée tout de suite.` : undefined}
+      >
+        {!type ? (
+          <p className="rounded-2xl bg-sable/70 px-4 py-3 text-sm text-sourdine">Choisissez d&apos;abord un service pour voir les heures libres.</p>
+        ) : !creneauxPrets ? (
+          <div role="status" aria-label="Chargement des créneaux" className="h-24 animate-pulse rounded-2xl bg-sable" />
+        ) : !creneauxPrets.ok ? (
+          <div className="space-y-3">
+            <Alerte ton={creneauxPrets.nonRegle ? "info" : "erreur"}>
+              {creneauxPrets.nonRegle
+                ? "Ce salon n'a pas encore ouvert la réservation en ligne pour ce service."
+                : creneauxPrets.erreur}
+            </Alerte>
+            {contact && creneauxPrets.nonRegle && (
+              <a href={contact} className="inline-flex items-center gap-2 text-sm font-medium text-accent-texte underline">
+                <IconWhatsApp width={18} height={18} />
+                Écrire au salon sur WhatsApp
+              </a>
+            )}
+          </div>
+        ) : creneaux.length === 0 ? (
+          <Alerte ton="indisponible">
+            {coiffeuseValide && tousCreneaux.length > 0
+              ? "Cette coiffeuse n'a plus de créneau libre ce jour-là. Choisissez « Peu importe » ou un autre jour."
+              : "Plus de créneau libre ce jour-là. Choisissez un autre jour."}
+          </Alerte>
+        ) : (
+          <div role="group" aria-label="Heure" className="grid grid-cols-4 gap-2">
+            {creneaux.map((c) => {
+              const on = c.heure === heure;
+              return (
+                <button
+                  key={c.heure}
+                  type="button"
+                  aria-pressed={on}
+                  data-heure={c.heure}
+                  onClick={() => (setHeure(c.heure), setErreurs((x) => ({ ...x, heure: undefined, global: undefined })))}
+                  className={`min-h-11 rounded-xl border text-sm font-semibold transition-colors ${
+                    on ? "border-marque bg-marque text-white" : "border-champ bg-white hover:border-marque"
+                  }`}
+                >
+                  {c.heure.replace(":", " h ")}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {erreurs.heure && (
+          <div className="mt-3">
+            <Alerte ton="erreur">{erreurs.heure}</Alerte>
+          </div>
+        )}
+      </Etape>
+
       <Etape n={++n} titre="Vos coordonnées">
         <ChampPublic label="Votre nom" erreur={erreurs.nom} id="champ-nom">
           {(champ) => (
@@ -345,7 +405,7 @@ export function FormulaireDemande({
             />
           )}
         </ChampPublic>
-        <ChampPublic label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Le salon vous confirmera l'heure sur ce numéro." id="champ-tel">
+        <ChampPublic label="Votre numéro WhatsApp" erreur={erreurs.tel} aide="Pour vous joindre si besoin. Votre rendez-vous est confirmé tout de suite." id="champ-tel">
           {(champ) => (
             <input
               {...champ}
@@ -360,7 +420,7 @@ export function FormulaireDemande({
             />
           )}
         </ChampPublic>
-        <ChampPublic label="Précisions (facultatif)" aide="Longueur, couleur… Vous pourrez envoyer la photo du modèle sur WhatsApp juste après.">
+        <ChampPublic label="Précisions (facultatif)" aide="Longueur, couleur…">
           {(champ) => <input {...champ} className={classeChamp} value={remarque} onChange={(e) => setRemarque(e.target.value)} maxLength={200} enterKeyHint="send" />}
         </ChampPublic>
       </Etape>
@@ -382,11 +442,11 @@ export function FormulaireDemande({
         )}
         <p className="mb-2 truncate text-center text-xs text-sourdine">{resume}</p>
         <Button variant="action" size="lg" className="w-full" loading={enCours} onClick={envoyer}>
-          {enCours ? "Envoi en cours…" : "Envoyer ma demande"}
+          {enCours ? "Réservation en cours…" : "Confirmer mon rendez-vous"}
         </Button>
       </div>
       <p className="mt-4 text-center text-xs text-sourdine">
-        Ce n&apos;est pas encore une confirmation : le salon vous répond sur WhatsApp avec l&apos;heure exacte.
+        Votre rendez-vous est confirmé dès que vous validez : vous recevez une référence pour le retrouver.
       </p>
     </div>
   );

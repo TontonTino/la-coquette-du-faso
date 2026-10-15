@@ -31,7 +31,7 @@ import { randomBytes } from "node:crypto";
 import { creneauxLibres, heureDepuisMinutes, minutesDepuisHeure, verifierHoraires, verifierService, type Creneau, type HoraireSaisi } from "@/lib/salon/creneaux";
 import type { AcomptePaye, Categorie, Coiffeuse, Famille, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut, Video } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
-import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
+import { isValidIsoDate, isValidTime, todayIso, weekday } from "@/lib/time";
 
 /**
  * Service métier de l'espace salon : seule porte d'accès aux données.
@@ -67,15 +67,16 @@ function codePg(e: unknown): string | undefined {
   return typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : undefined;
 }
 
-async function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<R<T>> {
+async function transaction<T>(
+  fn: (tx: Tx) => Promise<T>,
+  messageChevauchement = "Une coiffeuse choisie vient d'être prise sur ce créneau. Choisissez-en une autre.",
+): Promise<R<T>> {
   try {
     const valeur = (await db().begin((tx) => fn(tx))) as T;
     return ok(valeur);
   } catch (e) {
     if (e instanceof Refus) return ko(e.message);
-    if (codePg(e) === "23P01") {
-      return ko("Une coiffeuse choisie vient d'être prise sur ce créneau. Choisissez-en une autre.");
-    }
+    if (codePg(e) === "23P01") return ko(messageChevauchement);
     throw e;
   }
 }
@@ -854,6 +855,7 @@ export interface SuiviDemande {
   jour: Jour;
   moment: Moment | null;
   heure: string | null;
+  dureeMin: number | null;
   categorie: string | null;
   coiffeuses: string[];
   motifRefus: string | null;
@@ -868,11 +870,11 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
   const [r] = await db()<
     {
       prestation_id: string; reference: string; salon_nom: string; salon_slug: string | null; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
-      souhait_moment: Moment | null; debut: Date | null; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
+      souhait_moment: Moment | null; debut: Date | null; duree_min: number; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
       m_id: string | null; m_nom: string | null; m_maj: Date | null;
     }[]
   >`
-    SELECT p.id AS prestation_id, p.reference, s.nom AS salon_nom, s.slug AS salon_slug, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
+    SELECT p.id AS prestation_id, p.reference, s.nom AS salon_nom, s.slug AS salon_slug, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut, p.duree_min,
            k.nom AS categorie, p.motif_refus, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj,
            COALESCE((SELECT array_agg(c.nom ORDER BY c.nom) FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id
                      WHERE a.prestation_id = p.id AND a.active), '{}') AS coiffeuses
@@ -902,6 +904,7 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
     jour: r.jour,
     moment: r.souhait_moment,
     heure: r.debut ? r.debut.toISOString().slice(11, 16) : null,
+    dureeMin: r.debut ? r.duree_min : null,
     categorie: r.categorie,
     coiffeuses: r.coiffeuses,
     motifRefus: r.motif_refus,
@@ -1210,28 +1213,17 @@ export async function enregistrerService(ctx: Ctx, categorieId: string, dureeMin
   return r.length ? ok(undefined) : ko("Service inconnu.");
 }
 
-/**
- * Créneaux libres d'un salon pour un jour et un service (page publique, sans connexion).
- * Prend en compte : horaires du jour, durée du service, coiffeuses actives qui savent le faire, en congé ou absentes,
- * rendez-vous déjà pris, et la pause entre deux clientes. Renvoie « non réglé » tant que le salon n'a pas fixé
- * ses horaires ou la durée du service : on ne devine rien.
- */
-export async function creneauxLibresDuSalon(
-  slug: string,
-  jour: Jour,
-  categorieId: string,
-  now = new Date(),
-): Promise<R<{ creneaux: Creneau[]; dureeMin: number; prix: number | null }> | { ok: false; erreur: string; nonRegle: true }> {
-  const salon = await salonParSlug(slug);
-  if (!salon) return ko("Salon introuvable.");
+type Calcul = R<{ creneaux: Creneau[]; dureeMin: number; prix: number | null }> | { ok: false; erreur: string; nonRegle: true };
+
+/** Calcul des créneaux libres, utilisable dans une transaction (même règles pour l'affichage et pour la réservation). */
+async function calculerCreneaux(sql: postgres.Sql, salonId: string, jour: Jour, categorieId: string, now: Date): Promise<Calcul> {
   if (!isValidIsoDate(jour)) return ko("Date invalide.");
   if (!estUuid(categorieId)) return ko("Service inconnu.");
-  const sql = db();
   const [[cat], [salonLigne], horaire, coiffeuses] = await Promise.all([
-    sql<{ duree_min: number | null; prix: number | null }[]>`SELECT duree_min, prix FROM categorie WHERE id = ${categorieId} AND salon_id = ${salon.id} AND actif`,
+    sql<{ duree_min: number | null; prix: number | null }[]>`SELECT duree_min, prix FROM categorie WHERE id = ${categorieId} AND salon_id = ${salonId} AND actif`,
     sql<{ pause_min: number; nb_horaires: number }[]>`
-      SELECT pause_min, (SELECT count(*)::int FROM salon_horaire h WHERE h.salon_id = salon.id) AS nb_horaires FROM salon WHERE id = ${salon.id}`,
-    sql<{ ouvre_min: number; ferme_min: number }[]>`SELECT ouvre_min, ferme_min FROM salon_horaire WHERE salon_id = ${salon.id} AND jour = ${weekday(jour)}`,
+      SELECT pause_min, (SELECT count(*)::int FROM salon_horaire h WHERE h.salon_id = salon.id) AS nb_horaires FROM salon WHERE id = ${salonId}`,
+    sql<{ ouvre_min: number; ferme_min: number }[]>`SELECT ouvre_min, ferme_min FROM salon_horaire WHERE salon_id = ${salonId} AND jour = ${weekday(jour)}`,
     sql<{ id: string; occupations: { debut: number; fin: number }[] | null }[]>`
       SELECT c.id,
         (SELECT json_agg(json_build_object(
@@ -1241,7 +1233,7 @@ export async function creneauxLibresDuSalon(
            WHERE a.coiffeuse_id = c.id AND a.active
              AND a.plage && tstzrange((${jour}::date::timestamp AT TIME ZONE 'UTC') - interval '1 day', (${jour}::date::timestamp AT TIME ZONE 'UTC') + interval '2 days')) AS occupations
       FROM coiffeuse c
-      WHERE c.salon_id = ${salon.id} AND c.actif AND NOT (${weekday(jour)} = ANY (c.jours_conge))
+      WHERE c.salon_id = ${salonId} AND c.actif AND NOT (${weekday(jour)} = ANY (c.jours_conge))
         AND NOT EXISTS (SELECT 1 FROM absence ab WHERE ab.coiffeuse_id = c.id AND ab.jour = ${jour})
         AND EXISTS (SELECT 1 FROM competence k WHERE k.coiffeuse_id = c.id AND k.categorie_id = ${categorieId}::uuid)`,
   ]);
@@ -1257,4 +1249,115 @@ export async function creneauxLibresDuSalon(
     maintenantMin: jour === aujourdhui ? now.getUTCHours() * 60 + now.getUTCMinutes() : jour < aujourdhui ? 1441 : undefined,
   });
   return ok({ creneaux: liste, dureeMin: cat.duree_min, prix: cat.prix });
+}
+
+/**
+ * Créneaux libres d'un salon pour un jour et un service (page publique).
+ * Prend en compte : horaires du jour, durée du service, coiffeuses actives qui savent le faire, en congé ou absentes,
+ * rendez-vous déjà pris, et la pause entre deux clientes. Renvoie « non réglé » tant que le salon n'a pas fixé
+ * ses horaires ou la durée du service : on ne devine rien.
+ */
+export async function creneauxLibresDuSalon(slug: string, jour: Jour, categorieId: string, now = new Date()): Promise<Calcul> {
+  const salon = await salonParSlug(slug);
+  if (!salon) return ko("Salon introuvable.");
+  return calculerCreneaux(db(), salon.id, jour, categorieId, now);
+}
+
+export interface SaisieReservation {
+  clientNom: string;
+  clientTel: string;
+  categorieId: string;
+  /** Modèle choisi sur photo (facultatif). */
+  modeleId: string | null;
+  jour: Jour;
+  heure: string;
+  /** Coiffeuse demandée (facultatif) ; sinon le salon en attribue une libre. */
+  coiffeuseSouhaitee: string | null;
+  remarque: string;
+  /** Champ invisible : rempli seulement par les robots. */
+  piege: string;
+}
+
+export const RESERVATIONS_A_VENIR_MAX_PAR_NUMERO = 3;
+
+/**
+ * Réservation en ligne avec confirmation immédiate : le créneau est recalculé dans une transaction (verrou par salon),
+ * une coiffeuse libre est attribuée et le rendez-vous passe directement à « prévu ». La base refuse en dernier recours
+ * tout chevauchement (BR-001).
+ */
+export async function reserverCreneau(slug: string, s: SaisieReservation, now = new Date()): Promise<R<{ reference: string }>> {
+  if (s.piege) return ko("Réservation refusée.");
+  const salon = await salonParSlug(slug);
+  if (!salon) return ko("Salon introuvable.");
+  const ctx: Ctx = { salonId: salon.id, utilisateurId: "", role: "secretaire" };
+  const tel = verifierTelephone(s.clientTel, true);
+  const erreur =
+    verifierNom(s.clientNom) ??
+    tel.erreur ??
+    verifierJourDemande(s.jour, todayIso(now)) ??
+    (isValidTime(s.heure) ? null : "Heure invalide.") ??
+    verifierModele(s.remarque);
+  if (erreur) return ko(erreur);
+  if (!estUuid(s.categorieId)) return ko("Choisissez un service.");
+  if (s.coiffeuseSouhaitee !== null && !estUuid(s.coiffeuseSouhaitee)) return ko("Coiffeuse inconnue.");
+  if (s.modeleId !== null && !estUuid(s.modeleId)) return ko("Modèle inconnu.");
+  const debut = instant(s.jour, s.heure);
+
+  return transaction(
+    async (tx) => {
+      // Un seul calcul/écriture à la fois par salon : deux clientes ne peuvent pas prendre le même créneau.
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${"reserver:" + ctx.salonId}))`;
+      const [{ n }] = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM prestation
+        WHERE salon_id = ${ctx.salonId} AND client_tel = ${tel.tel} AND canal = 'en_ligne' AND statut = 'prevue' AND debut > ${now}`;
+      if (n >= RESERVATIONS_A_VENIR_MAX_PAR_NUMERO) {
+        throw new Refus(`Vous avez déjà ${n} rendez-vous à venir dans ce salon. Annulez-en un en écrivant au salon, ou venez le jour J.`);
+      }
+      const [{ h }] = await tx<{ h: number }[]>`
+        SELECT count(*)::int AS h FROM prestation
+        WHERE salon_id = ${ctx.salonId} AND canal = 'en_ligne' AND cree_le > ${new Date(now.getTime() - 3_600_000)}`;
+      if (h >= 60) throw new Refus("Beaucoup de réservations en ce moment : réessayez dans quelques minutes ou écrivez au salon sur WhatsApp.");
+
+      const remarque = s.remarque.trim() || null;
+      if (s.modeleId) {
+        const [m] = await tx<{ categorie_id: string | null }[]>`SELECT categorie_id FROM modele WHERE id = ${s.modeleId} AND salon_id = ${ctx.salonId} AND actif`;
+        if (!m) throw new Refus("Ce modèle n'est plus proposé.");
+        if (m.categorie_id !== null && m.categorie_id !== s.categorieId) throw new Refus("Ce modèle ne correspond pas au service choisi.");
+      }
+      const calcul = await calculerCreneaux(tx, ctx.salonId, s.jour, s.categorieId, now);
+      if (!calcul.ok) throw new Refus(calcul.erreur);
+      const creneau = calcul.valeur.creneaux.find((c) => c.heure === s.heure);
+      if (!creneau) throw new Refus("Ce créneau vient d'être pris ou n'est plus proposé. Choisissez-en un autre.");
+      if (s.coiffeuseSouhaitee && !creneau.coiffeuseIds.includes(s.coiffeuseSouhaitee)) {
+        throw new Refus("Cette coiffeuse n'est plus libre à cette heure. Choisissez un autre créneau ou « Peu importe ».");
+      }
+      // Sans préférence : la coiffeuse libre qui a le moins de rendez-vous ce jour-là (répartition équitable).
+      let coiffeuseId = s.coiffeuseSouhaitee;
+      if (!coiffeuseId) {
+        const [choisie] = await tx<{ id: string }[]>`
+          SELECT c.id FROM coiffeuse c
+          WHERE c.id IN ${tx(creneau.coiffeuseIds)}
+          ORDER BY (SELECT count(*) FROM affectation a JOIN prestation p ON p.id = a.prestation_id
+                    WHERE a.coiffeuse_id = c.id AND a.active AND p.jour = ${s.jour}), c.nom, c.id
+          LIMIT 1`;
+        coiffeuseId = choisie.id;
+      }
+      for (let essai = 0; essai < 5; essai++) {
+        const reference = nouvelleReference((k) => randomBytes(k));
+        const r = await tx<{ id: string; reference: string }[]>`
+          INSERT INTO prestation (salon_id, origine, statut, canal, reference, client_nom, client_tel, modele, categorie_id, modele_id,
+                                  jour, debut, duree_min, coiffeuse_souhaitee)
+          VALUES (${ctx.salonId}, 'rendez_vous', 'prevue', 'en_ligne', ${reference}, ${s.clientNom.trim()}, ${tel.tel}, ${remarque},
+                  ${s.categorieId}, ${s.modeleId}, ${s.jour}, ${debut}, ${calcul.valeur.dureeMin}, ${s.coiffeuseSouhaitee})
+          ON CONFLICT (reference) DO NOTHING
+          RETURNING id, reference`;
+        if (r.length) {
+          await poserAffectations(tx, ctx, r[0].id, [coiffeuseId], debut, calcul.valeur.dureeMin);
+          return { reference: r[0].reference };
+        }
+      }
+      throw new Error("Impossible de générer une référence unique.");
+    },
+    "Ce créneau vient d'être pris. Choisissez-en un autre.",
+  );
 }
