@@ -1,24 +1,13 @@
 import type { Metadata } from "next";
+import { CadreConnexion } from "@/components/brand/CadreConnexion";
 import { FormulaireConnexionAdmin } from "./FormulaireConnexionAdmin";
 
 export const metadata: Metadata = { title: "Connexion MIA", robots: { index: false, follow: false } };
 
 export default function PageConnexionAdmin() {
   return (
-    <main className="texture-noire flex min-h-dvh flex-col">
-      <div className="flex flex-1 items-center justify-center px-4 py-10">
-        <div className="w-full max-w-sm">
-          <div className="flex flex-col items-center text-center">
-            <p className="font-display text-[2.2rem] leading-none font-bold text-or">MIA</p>
-            <p className="mt-2 text-sm text-white/60">Espace opérateur</p>
-          </div>
-          <div className="mt-8 rounded-[1.75rem] bg-lin p-6 shadow-2xl">
-            <h1 className="font-display text-[1.8rem] leading-none font-bold text-encre">Connexion</h1>
-            <p className="mt-2 text-sm text-sourdine">Réservé à l&apos;équipe MIA : création et réglage des salons.</p>
-            <FormulaireConnexionAdmin />
-          </div>
-        </div>
-      </div>
-    </main>
+    <CadreConnexion sousTitre="Espace opérateur" titre="Connexion" aide="Réservé à l'équipe MIA : création et réglage des salons.">
+      <FormulaireConnexionAdmin />
+    </CadreConnexion>
   );
 }

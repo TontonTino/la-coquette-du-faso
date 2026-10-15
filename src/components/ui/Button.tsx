@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
-type Variant = "or" | "action" | "noir" | "contour" | "contour-clair" | "discret" | "danger";
+type Variant = "or" | "mia" | "action" | "noir" | "contour" | "contour-clair" | "discret" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const base =
@@ -10,6 +10,8 @@ const base =
 const variants: Record<Variant, string> = {
   /** Bouton principal des pages clientes : couleur d'action du salon (thème), texte lisible. */
   action: "bg-action text-action-texte hover:bg-action-fort shadow-carte",
+  /** Bouton principal des écrans de la plateforme MIA : terracotta (version contrastée, AA avec du texte blanc). */
+  mia: "bg-mia-action text-white hover:bg-mia-action-fort shadow-carte",
   or: "bg-or text-noir hover:bg-[#d4b25e] shadow-or",
   noir: "bg-noir text-white hover:bg-noir-doux",
   contour: "border border-noir/15 bg-white text-noir hover:border-or hover:bg-creme",

@@ -33,7 +33,7 @@ export function FormulaireConnexion() {
           {etat.erreur}
         </p>
       )}
-      <Button type="submit" variant="noir" size="lg" loading={enCours}>
+      <Button type="submit" variant="mia" size="lg" loading={enCours}>
         Se connecter
       </Button>
     </form>

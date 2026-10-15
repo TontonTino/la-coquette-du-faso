@@ -29,7 +29,7 @@ export function FormulaireSalon({ salon }: { salon?: SalonDetail }) {
         </Carte>
         <IdentifiantsAffiches comptes={c.comptes} titre="Identifiants à remettre à la gérante" />
         <div className="flex flex-wrap gap-3">
-          <Link href={`/s/${c.slug}`} className="inline-flex h-11 items-center rounded-full bg-noir px-5 text-sm font-medium text-white hover:bg-noir-doux">
+          <Link href={`/s/${c.slug}`} className="inline-flex h-11 items-center rounded-full bg-mia-action px-5 text-sm font-medium text-white hover:bg-mia-action-fort">
             Voir la page du salon
           </Link>
           <Link href={`/admin/salons/${c.salonId}`} className="inline-flex h-11 items-center rounded-full border border-noir/15 bg-white px-5 text-sm font-medium hover:border-or">
@@ -142,7 +142,7 @@ export function FormulaireSalon({ salon }: { salon?: SalonDetail }) {
           {etatModif.ok}
         </p>
       )}
-      <Button type="submit" variant="noir" size="lg" loading={enCours}>
+      <Button type="submit" variant="mia" size="lg" loading={enCours}>
         {modif ? "Enregistrer" : "Créer le salon"}
       </Button>
     </form>

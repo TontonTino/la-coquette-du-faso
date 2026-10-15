@@ -16,7 +16,7 @@ export default function PageAdmin() {
       <main className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-3xl leading-none font-bold">Salons</h1>
-          <Link href="/admin/nouveau" className="inline-flex h-11 items-center rounded-full bg-noir px-5 text-sm font-medium text-white hover:bg-noir-doux">
+          <Link href="/admin/nouveau" className="inline-flex h-11 items-center rounded-full bg-mia-action px-5 text-sm font-medium text-white hover:bg-mia-action-fort">
             Nouveau salon
           </Link>
         </div>
@@ -48,7 +48,7 @@ async function ListeSalons() {
               <Link href={`/s/${s.slug}`} className="inline-flex h-11 items-center rounded-full border border-noir/15 bg-white px-4 text-sm font-medium hover:border-or">
                 Voir
               </Link>
-              <Link href={`/admin/salons/${s.id}`} className="inline-flex h-11 items-center rounded-full bg-noir px-4 text-sm font-medium text-white hover:bg-noir-doux">
+              <Link href={`/admin/salons/${s.id}`} className="inline-flex h-11 items-center rounded-full bg-mia-action px-4 text-sm font-medium text-white hover:bg-mia-action-fort">
                 Régler
               </Link>
             </div>

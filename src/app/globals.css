@@ -46,6 +46,18 @@
   --color-accent-pale: var(--color-creme-chaude);     /* fond léger d'une sélection */
   --color-detail: var(--color-or);                /* filets, étoiles, détails (jamais du texte sur fond clair) */
 
+  /* ---- Marque MIA (charte « MIA by RAVENOUS ») : écrans de la plateforme, jamais les pages des salons ----
+     Couleurs de marque : terracotta #C8522E (logo, aplats, éléments décoratifs), sable, cacao, or (accent discret),
+     sauge (usages fonctionnels). Le terracotta de marque ne donne que 4,5:1 avec du texte blanc et 4,0:1 comme texte
+     sur sable : les boutons et les liens utilisent « terracotta-action » (5,2:1 et 4,7:1, WCAG AA). */
+  --color-mia-terracotta: #c8522e;
+  --color-mia-action: #b9482a;
+  --color-mia-action-fort: #9f3d20;
+  --color-mia-sable: #f7f2eb;
+  --color-mia-cacao: #221714;
+  --color-mia-or: #e5a93c;
+  --color-mia-sauge: #4a7c59;
+
   --font-sans: var(--font-poppins), system-ui, sans-serif;
   --font-display: var(--font-cormorant), Georgia, serif;
 
@@ -160,4 +172,22 @@ body {
   scroll-snap-align: start;
   scroll-snap-stop: always;
   height: 100dvh;
+}
+
+/* Écrans de la plateforme MIA : les « rôles » communs prennent les couleurs et polices de la marque MIA.
+   Appliqué par `classeMarqueMia` (src/app/polices-mia.ts) sur le conteneur de l'écran. */
+.marque-mia {
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-display: var(--font-syne), system-ui, sans-serif;
+  --color-atelier: var(--color-mia-sable);
+  --color-encre: var(--color-mia-cacao);
+  --color-noir: var(--color-mia-cacao);
+  --color-noir-doux: #3a2b26;
+  --color-or: var(--color-mia-action);
+  --color-or-fonce: var(--color-mia-action-fort);
+  --color-or-pale: #f6e3da;
+  --color-sourdine: #6b5d55;
+  --color-trait: #e6dccd;
+  --color-creme: #fbf7f1;
+  font-family: var(--font-sans);
 }
