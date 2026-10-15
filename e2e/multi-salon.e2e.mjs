@@ -2,7 +2,7 @@
  * Parcours de bout en bout : un SECOND salon, créé par `npm run salon:creer`, est propre et isolé.
  * Vérifie : page publique à /s/<identifiant> sans aucune trace de La Coquette du Faso (nom, logo, photos),
  * liens qui restent dans le salon, demande d'une cliente, connexion du personnel du nouveau salon,
- * salon inconnu = page introuvable, et La Coquette du Faso inchangé à la racine.
+ * salon inconnu = page introuvable, la racine = page MIA, et La Coquette du Faso inchangé sous /s/la-coquette-du-faso.
  * Prérequis : base de démo (La Coquette du Faso), application sur :3200, DATABASE_URL = la même base.
  * Usage : DATABASE_URL=... BASE_URL=http://localhost:3200 npm run test:e2e:multi
  */
@@ -162,13 +162,27 @@ await verifier("Un salon inconnu donne « Page introuvable »", async () => {
   await q.context().close();
 });
 
-await verifier("La Coquette du Faso est inchangé à la racine (nom, logo)", async () => {
+await verifier("La racine du site est la page MIA, sans trace d'un salon", async () => {
   await p.goto(`${BASE}/`);
+  await p.getByRole("heading", { name: /Les rendez-vous de votre salon/ }).waitFor();
+  const t = await p.locator("body").innerText();
+  if (/Coquette/i.test(t) || (NOM_SALON && t.includes(NOM_SALON))) throw new Error("un salon apparaît sur la page MIA");
+});
+
+await verifier("La Coquette du Faso est inchangé sous /s/la-coquette-du-faso (nom, logo)", async () => {
+  await p.goto(`${BASE}/s/la-coquette-du-faso`);
   await p.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   const t = await p.locator("body").innerText();
   if (!t.includes("La Coquette du Faso")) throw new Error("nom absent");
-  if (NOM_SALON && t.includes(NOM_SALON)) throw new Error("le nouveau salon apparaît à la racine");
+  if (NOM_SALON && t.includes(NOM_SALON)) throw new Error("le nouveau salon apparaît chez La Coquette");
   if ((await p.locator("img[src*='logo']").count()) === 0) throw new Error("logo absent");
+});
+
+await verifier("les anciennes adresses /reserver et /videos mènent à La Coquette, requête conservée", async () => {
+  await p.goto(`${BASE}/reserver?modele=abc`);
+  await p.waitForURL(`${BASE}/s/la-coquette-du-faso/reserver?modele=abc`);
+  await p.goto(`${BASE}/videos`);
+  await p.waitForURL(`${BASE}/s/la-coquette-du-faso/videos`);
 });
 
 await verifier("Aucune erreur dans la console", async () => {

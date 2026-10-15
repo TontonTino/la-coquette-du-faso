@@ -1,5 +1,8 @@
-/** Salon affiché à la racine du site (« / », « /reserver »…). Les autres salons sont sous « /s/<identifiant> ». */
+/**
+ * Salon historique (La Coquette du Faso par défaut) : ses anciennes adresses « /reserver », « /videos » et « /realisations »
+ * redirigent vers « /s/<identifiant> » (voir next.config.ts). La racine du site (« / ») est la page de la plateforme MIA.
+ */
 export const SALON_PUBLIC = process.env.SALON_SLUG ?? "la-coquette-du-faso";
 
-/** Début des adresses d'un salon : vide à la racine, « /s/<identifiant> » ailleurs. */
-export const baseDuSalon = (slug: string, racine: boolean) => (racine ? "" : `/s/${slug}`);
+/** Début des adresses d'un salon : toujours « /s/<identifiant> ». */
+export const baseDuSalon = (slug: string) => `/s/${slug}`;

@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql", "007_identite_salon.sql", "008_espace_mia.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql", "007_identite_salon.sql", "008_espace_mia.sql", "009_horaires_durees.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -675,6 +675,71 @@ suite("service salon (PostgreSQL)", () => {
       await expect(ouvrirSalon(admin, { nom: "Salon Cinq", services: [{ nom: "Tresses", famille: "coiffure" }, { nom: "tresses", famille: "coiffure" }] })).rejects.toThrow(/deux fois/);
       // Rien n'a été créé par les tentatives refusées
       expect(await admin`SELECT 1 FROM salon WHERE slug IN ('salon-deux','salon-trois','salon-quatre','salon-cinq','x')`).toHaveLength(0);
+    });
+  });
+
+  describe("horaires, pause et créneaux libres", () => {
+    const semaine = (ouverts: number[]) =>
+      Array.from({ length: 7 }, (_, jour) => ({ jour, ouvert: ouverts.includes(jour), ouvre: "08:00", ferme: "18:00" }));
+    const heures = async (jour: string, categorie = c.tresses) => {
+      const r = await svc.creneauxLibresDuSalon("salon-a", jour, categorie, NOW);
+      return r.ok ? r.valeur.creneaux.map((x) => x.heure) : r.erreur;
+    };
+
+    it("refuse de proposer des créneaux tant que les horaires et la durée ne sont pas réglés", async () => {
+      expect(await heures(JOUR)).toBe("Ce salon n'a pas encore réglé ses horaires.");
+      expect((await svc.enregistrerHoraires(A, semaine([6]), 30)).ok).toBe(true);
+      expect(await heures(JOUR)).toBe("La durée de ce service n'est pas encore réglée.");
+      expect((await svc.enregistrerService(A, c.tresses, 120, 15000)).ok).toBe(true);
+      expect(await heures(JOUR)).toContain("11:00");
+    });
+
+    it("seule la gérante règle les horaires et les services ; les valeurs invalides sont refusées", async () => {
+      await expect(svc.enregistrerHoraires(secA, semaine([6]), 30)).rejects.toThrow(/non autorisée/);
+      await expect(svc.enregistrerService(secA, c.tresses, 60, null)).rejects.toThrow(/non autorisée/);
+      await expect(svc.lireReglages(secA)).rejects.toThrow(/non autorisée/);
+      expect(await svc.enregistrerHoraires(A, semaine([]), 30)).toEqual({ ok: false, erreur: "Le salon doit être ouvert au moins un jour." });
+      expect(await svc.enregistrerHoraires(A, semaine([6]), 7)).toMatchObject({ ok: false });
+      expect(await svc.enregistrerService(A, c.tresses, 20, null)).toMatchObject({ ok: false });
+      // Un service d'un autre salon est inconnu
+      expect(await svc.enregistrerService(A, c.tressesB, 60, null)).toEqual({ ok: false, erreur: "Service inconnu." });
+      const apres = await svc.lireReglages(A);
+      expect(apres.horairesConfigures).toBe(false);
+    });
+
+    it("relit ce qui a été enregistré", async () => {
+      await svc.enregistrerHoraires(A, semaine([2, 6]), 45);
+      await svc.enregistrerService(A, c.tissage, 240, null);
+      const r = await svc.lireReglages(A);
+      expect(r).toMatchObject({ horairesConfigures: true, pauseMin: 45 });
+      expect(r.horaires.filter((j) => j.ouvert).map((j) => j.jour)).toEqual([2, 6]);
+      expect(r.services.find((x) => x.nom === "Tissage")).toMatchObject({ dureeMin: 240, prix: null });
+      expect(r.services.find((x) => x.nom === "Tresses")).toMatchObject({ dureeMin: null });
+    });
+
+    it("tient compte des horaires, du passé, de la pause avant et après un rendez-vous, des absences et des jours fermés", async () => {
+      await svc.enregistrerHoraires(A, semaine([6]), 30);
+      await svc.enregistrerService(A, c.tresses, 120, 15000);
+      // Samedi 10 octobre, il est 11 h : premier créneau 11 h, dernier 16 h (fermeture à 18 h).
+      const libre = await heures(JOUR);
+      expect(libre).toEqual(expect.arrayContaining(["11:00", "16:00"]));
+      expect(libre).not.toContain("10:45");
+      expect(libre).not.toContain("16:15");
+      // Rendez-vous d'Awa de 14 h à 15 h : 30 min de pause de chaque côté.
+      expect((await svc.creerRendezVous(secA, rdv({ heure: "14:00", dureeMin: 60 }), NOW)).ok).toBe(true);
+      expect(await heures(JOUR)).toEqual(["11:00", "11:15", "11:30", "15:30", "15:45", "16:00"]);
+      // Dimanche : fermé. Jour passé : rien. Absente : rien (Awa est la seule à faire les tresses).
+      expect(await heures("2026-10-11")).toEqual([]);
+      expect(await heures("2026-10-03")).toEqual([]);
+      await svc.basculerAbsence(secA, c.awa, JOUR);
+      expect(await heures(JOUR)).toEqual([]);
+    });
+
+    it("un service d'un autre salon, une date invalide ou un salon inconnu sont refusés", async () => {
+      expect(await svc.creneauxLibresDuSalon("salon-a", JOUR, c.tressesB, NOW)).toEqual({ ok: false, erreur: "Service inconnu." });
+      expect(await svc.creneauxLibresDuSalon("salon-a", "pas-une-date", c.tresses, NOW)).toEqual({ ok: false, erreur: "Date invalide." });
+      expect(await svc.creneauxLibresDuSalon("inconnu", JOUR, c.tresses, NOW)).toEqual({ ok: false, erreur: "Salon introuvable." });
+      expect(await svc.creneauxLibresDuSalon("salon-b", JOUR, c.tresses, NOW)).toEqual({ ok: false, erreur: "Salon introuvable." });
     });
   });
 });

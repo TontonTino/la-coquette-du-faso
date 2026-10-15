@@ -189,6 +189,21 @@ export async function refuserDemandeAction(id: string, motif: string) {
   return executer(async () => svc.refuserDemande(await exigerAction(), texte(id, 40), texte(motif, 250)));
 }
 
+export async function enregistrerHorairesAction(jours: { jour: number; ouvert: boolean; ouvre: string; ferme: string }[], pauseMin: number) {
+  return executer(async () =>
+    svc.enregistrerHoraires(
+      await exigerAction(["gerante"]),
+      Array.isArray(jours) ? jours.slice(0, 7).map((j) => ({ jour: entier(j?.jour), ouvert: j?.ouvert === true, ouvre: texte(j?.ouvre, 5), ferme: texte(j?.ferme, 5) })) : [],
+      entier(pauseMin),
+    ),
+  );
+}
+
+export async function enregistrerServiceAction(categorieId: string, dureeMin: number | null, prix: number | null) {
+  const nombre = (v: unknown) => (v === null || v === undefined || v === "" ? null : entier(v));
+  return executer(async () => svc.enregistrerService(await exigerAction(["gerante"]), texte(categorieId, 40), nombre(dureeMin), nombre(prix)));
+}
+
 export async function modifierWhatsappSalonAction(whatsapp: string) {
   return executer(async () => svc.modifierWhatsappSalon(await exigerAction(["gerante"]), texte(whatsapp, 30)));
 }

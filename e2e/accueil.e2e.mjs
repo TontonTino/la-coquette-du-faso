@@ -31,7 +31,7 @@ async function ouvrir(largeur, hauteur = 844) {
   const p = await ctx.newPage();
   p.on("console", (m) => m.type() === "error" && erreurs.push(m.text()));
   p.on("pageerror", (e) => erreurs.push(e.message));
-  await p.goto(`${BASE}/`);
+  await p.goto(`${BASE}/s/la-coquette-du-faso`);
   await p.locator("#titre-services").waitFor(); // le reste de la page arrive après l'enveloppe (rendu progressif)
   return p;
 }
@@ -103,7 +103,7 @@ await verifier("Parcours : une carte de service mène à la réservation avec le
 });
 
 await verifier("Parcours : « Tout voir » ouvre la bibliothèque, qui montre aussi les photos du salon", async () => {
-  await p.goto(`${BASE}/`);
+  await p.goto(`${BASE}/s/la-coquette-du-faso`);
   await p.getByRole("link", { name: "Tout voir" }).click();
   await p.waitForURL(/\/realisations$/);
   await p.getByRole("heading", { name: "Nos réalisations" }).waitFor();

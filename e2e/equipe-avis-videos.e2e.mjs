@@ -87,7 +87,7 @@ await verifier("La gérante ajoute la photo d'une coiffeuse", async () => {
 });
 
 await verifier("L'accueil montre « Notre équipe » avec la photo, et les coordonnées du salon", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("heading", { name: "Notre équipe" }).waitFor();
   const photo = cliente.getByRole("img", { name: nomPhoto, exact: true }).first();
   await photo.waitFor();
@@ -109,10 +109,10 @@ await verifier("L'accueil montre « Notre équipe » avec la photo, et les coord
 });
 
 await verifier("Services : manucure et pédicure sont proposées, avec leurs spécialistes seulement", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   for (const n of ["Manucure", "Pédicure"]) await cliente.getByRole("link", { name: n, exact: true }).waitFor();
-  await cliente.goto(`${BASE}/reserver`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
   // Le formulaire arrive après l'enveloppe de la page (rendu progressif) : on l'attend avant de compter.
   await cliente.getByRole("group", { name: "Coiffeuse souhaitée" }).waitFor();
   const tous = await cliente.getByRole("group", { name: "Coiffeuse souhaitée" }).getByRole("button").count();
@@ -129,9 +129,9 @@ await verifier("Services : manucure et pédicure sont proposées, avec leurs sp�
 });
 
 await verifier("Une coiffeuse choisie depuis « Notre équipe » est présélectionnée", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("heading", { name: "Notre équipe" }).waitFor();
-  await cliente.locator('a[href^="/reserver?coiffeuse="]').first().click();
+  await cliente.locator('a[href^="/s/la-coquette-du-faso/reserver?coiffeuse="]').first().click();
   await cliente.waitForURL(/\/reserver\?coiffeuse=/);
   const groupe = cliente.getByRole("group", { name: "Coiffeuse souhaitée" });
   await groupe.waitFor();
@@ -199,7 +199,7 @@ async function balayer(p, selecteur, dx, dy) {
 const PISTE = "ul[aria-label='Vidéos des coiffures']";
 
 await verifier("Accueil : aucune vidéo dans la page, mais un onglet « Vidéos » sur le bord droit", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("link", { name: "Vidéos", exact: true }).waitFor();
   if ((await cliente.locator("video").count()) !== 0) throw new Error("des vidéos sont affichées sur l'accueil");
   if ((await cliente.getByRole("heading", { name: "Voyez le résultat en vidéo" }).count()) !== 0) throw new Error("ancienne section vidéos présente");
@@ -251,12 +251,12 @@ await verifier("Le son s'active, reste actif sur l'autre vidéo, puis se coupe",
 
 await verifier("Un balayage vers la droite ramène à l'accueil, et plus aucune vidéo ne joue", async () => {
   await balayer(cliente, `${PISTE} > li`, 160, 8);
-  await cliente.waitForURL(`${BASE}/`, { timeout: 10000 });
+  await cliente.waitForURL(`${BASE}/s/la-coquette-du-faso`, { timeout: 10000 });
   await cliente.waitForFunction(() => [...document.querySelectorAll("video")].every((v) => v.paused), null, { timeout: 5000 });
 });
 
 await verifier("Notre équipe : les photos sont rondes ; « Tout voir » ouvre la bibliothèque des réalisations", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("heading", { name: "Notre équipe" }).waitFor();
   const formes = await cliente.evaluate(() =>
     [...document.querySelectorAll("[aria-labelledby='titre-equipe'] ul img, [aria-labelledby='titre-equipe'] ul [role='img']")].map((e) => {
@@ -276,7 +276,7 @@ await verifier("Notre équipe : les photos sont rondes ; « Tout voir » ouvre l
 });
 
 await verifier("« Je veux cette coiffure » ouvre la réservation avec le modèle choisi", async () => {
-  await cliente.goto(`${BASE}/videos`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso/videos`);
   const lien = cliente.getByRole("link", { name: "Je veux cette coiffure" }).first();
   await lien.waitFor();
   await lien.click();
@@ -347,7 +347,7 @@ await verifier("La cliente note sa coiffeuse (4 étoiles) et peut revenir sur so
 });
 
 await verifier("Une référence de prestation non terminée ne permet pas de noter", async () => {
-  await cliente.goto(`${BASE}/reserver`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
   await cliente.getByLabel(/^Votre nom/).fill(`Aïcha ${SUFFIXE}`);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(`6${String(Date.now()).slice(-7)}`);
   await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();

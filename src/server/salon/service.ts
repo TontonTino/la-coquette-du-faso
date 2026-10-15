@@ -28,6 +28,7 @@ import {
   verifierVideo,
 } from "@/lib/salon/regles";
 import { randomBytes } from "node:crypto";
+import { creneauxLibres, heureDepuisMinutes, minutesDepuisHeure, verifierHoraires, verifierService, type Creneau, type HoraireSaisi } from "@/lib/salon/creneaux";
 import type { AcomptePaye, Categorie, Coiffeuse, Famille, Jour, Modele, Moment, Paiement, Prestation, Resultat, Role, Statut, Video } from "@/lib/salon/types";
 import { construireBilan, construireJournee, type Bilan, type Journee } from "@/lib/salon/vue";
 import { isValidIsoDate, todayIso, weekday } from "@/lib/time";
@@ -1139,4 +1140,121 @@ export async function modifierVideo(ctx: Ctx, id: string, s: { titre: string; mo
     if (r.length === 0) throw new Refus("Vidéo inconnue.");
     return undefined;
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Horaires, pause, durées et prix — réglés par la gérante             */
+/* ------------------------------------------------------------------ */
+
+export interface ServiceReglage {
+  id: string;
+  nom: string;
+  famille: Famille;
+  dureeMin: number | null;
+  prix: number | null;
+}
+
+export interface Reglages {
+  /** Faux tant que la gérante n'a pas enregistré les horaires : la réservation en ligne reste fermée. */
+  horairesConfigures: boolean;
+  /** Sept jours, dimanche (0) en premier. */
+  horaires: HoraireSaisi[];
+  pauseMin: number;
+  services: ServiceReglage[];
+}
+
+export async function lireReglages(ctx: Ctx): Promise<Reglages> {
+  autoriser(ctx, GERANTE);
+  const sql = db();
+  const [lignes, [salon], services] = await Promise.all([
+    sql<{ jour: number; ouvre_min: number; ferme_min: number }[]>`SELECT jour, ouvre_min, ferme_min FROM salon_horaire WHERE salon_id = ${ctx.salonId}`,
+    sql<{ pause_min: number }[]>`SELECT pause_min FROM salon WHERE id = ${ctx.salonId}`,
+    sql<{ id: string; nom: string; famille: Famille; duree_min: number | null; prix: number | null }[]>`
+      SELECT id, nom, famille, duree_min, prix FROM categorie WHERE salon_id = ${ctx.salonId} AND actif ORDER BY famille, nom`,
+  ]);
+  const parJour = new Map(lignes.map((l) => [l.jour, l]));
+  const horaires = Array.from({ length: 7 }, (_, jour): HoraireSaisi => {
+    const l = parJour.get(jour);
+    // Valeurs proposées à l'écran tant que rien n'est réglé : ce ne sont pas des horaires enregistrés.
+    return l ? { jour, ouvert: true, ouvre: heureDepuisMinutes(l.ouvre_min), ferme: heureDepuisMinutes(l.ferme_min) } : { jour, ouvert: lignes.length === 0 && jour !== 0, ouvre: "08:00", ferme: "19:00" };
+  });
+  return {
+    horairesConfigures: lignes.length > 0,
+    horaires,
+    pauseMin: salon.pause_min,
+    services: services.map((c) => ({ id: c.id, nom: c.nom, famille: c.famille, dureeMin: c.duree_min, prix: c.prix })),
+  };
+}
+
+export async function enregistrerHoraires(ctx: Ctx, jours: HoraireSaisi[], pauseMin: number): Promise<R> {
+  autoriser(ctx, GERANTE);
+  const erreur = verifierHoraires(jours, pauseMin);
+  if (erreur) return ko(erreur);
+  return transaction(async (tx): Promise<undefined> => {
+    await tx`DELETE FROM salon_horaire WHERE salon_id = ${ctx.salonId}`;
+    for (const j of jours.filter((x) => x.ouvert)) {
+      await tx`INSERT INTO salon_horaire (salon_id, jour, ouvre_min, ferme_min)
+               VALUES (${ctx.salonId}, ${j.jour}, ${minutesDepuisHeure(j.ouvre)!}, ${minutesDepuisHeure(j.ferme)!})`;
+    }
+    await tx`UPDATE salon SET pause_min = ${pauseMin} WHERE id = ${ctx.salonId}`;
+    return undefined;
+  });
+}
+
+export async function enregistrerService(ctx: Ctx, categorieId: string, dureeMin: number | null, prix: number | null): Promise<R> {
+  autoriser(ctx, GERANTE);
+  if (!estUuid(categorieId)) return ko("Service inconnu.");
+  const erreur = verifierService({ dureeMin, prix });
+  if (erreur) return ko(erreur);
+  const r = await db()`UPDATE categorie SET duree_min = ${dureeMin}, prix = ${prix} WHERE id = ${categorieId} AND salon_id = ${ctx.salonId} RETURNING id`;
+  return r.length ? ok(undefined) : ko("Service inconnu.");
+}
+
+/**
+ * Créneaux libres d'un salon pour un jour et un service (page publique, sans connexion).
+ * Prend en compte : horaires du jour, durée du service, coiffeuses actives qui savent le faire, en congé ou absentes,
+ * rendez-vous déjà pris, et la pause entre deux clientes. Renvoie « non réglé » tant que le salon n'a pas fixé
+ * ses horaires ou la durée du service : on ne devine rien.
+ */
+export async function creneauxLibresDuSalon(
+  slug: string,
+  jour: Jour,
+  categorieId: string,
+  now = new Date(),
+): Promise<R<{ creneaux: Creneau[]; dureeMin: number; prix: number | null }> | { ok: false; erreur: string; nonRegle: true }> {
+  const salon = await salonParSlug(slug);
+  if (!salon) return ko("Salon introuvable.");
+  if (!isValidIsoDate(jour)) return ko("Date invalide.");
+  if (!estUuid(categorieId)) return ko("Service inconnu.");
+  const sql = db();
+  const [[cat], [salonLigne], horaire, coiffeuses] = await Promise.all([
+    sql<{ duree_min: number | null; prix: number | null }[]>`SELECT duree_min, prix FROM categorie WHERE id = ${categorieId} AND salon_id = ${salon.id} AND actif`,
+    sql<{ pause_min: number; nb_horaires: number }[]>`
+      SELECT pause_min, (SELECT count(*)::int FROM salon_horaire h WHERE h.salon_id = salon.id) AS nb_horaires FROM salon WHERE id = ${salon.id}`,
+    sql<{ ouvre_min: number; ferme_min: number }[]>`SELECT ouvre_min, ferme_min FROM salon_horaire WHERE salon_id = ${salon.id} AND jour = ${weekday(jour)}`,
+    sql<{ id: string; occupations: { debut: number; fin: number }[] | null }[]>`
+      SELECT c.id,
+        (SELECT json_agg(json_build_object(
+                  'debut', (extract(epoch FROM lower(a.plage)) - extract(epoch FROM (${jour}::date::timestamp AT TIME ZONE 'UTC'))) / 60,
+                  'fin',   (extract(epoch FROM upper(a.plage)) - extract(epoch FROM (${jour}::date::timestamp AT TIME ZONE 'UTC'))) / 60))
+           FROM affectation a
+           WHERE a.coiffeuse_id = c.id AND a.active
+             AND a.plage && tstzrange((${jour}::date::timestamp AT TIME ZONE 'UTC') - interval '1 day', (${jour}::date::timestamp AT TIME ZONE 'UTC') + interval '2 days')) AS occupations
+      FROM coiffeuse c
+      WHERE c.salon_id = ${salon.id} AND c.actif AND NOT (${weekday(jour)} = ANY (c.jours_conge))
+        AND NOT EXISTS (SELECT 1 FROM absence ab WHERE ab.coiffeuse_id = c.id AND ab.jour = ${jour})
+        AND EXISTS (SELECT 1 FROM competence k WHERE k.coiffeuse_id = c.id AND k.categorie_id = ${categorieId}::uuid)`,
+  ]);
+  if (!cat) return ko("Service inconnu.");
+  if (salonLigne.nb_horaires === 0) return { ok: false, erreur: "Ce salon n'a pas encore réglé ses horaires.", nonRegle: true };
+  if (cat.duree_min === null) return { ok: false, erreur: "La durée de ce service n'est pas encore réglée.", nonRegle: true };
+  const aujourdhui = now.toISOString().slice(0, 10);
+  const liste = creneauxLibres({
+    horaire: horaire[0] ? { ouvreMin: horaire[0].ouvre_min, fermeMin: horaire[0].ferme_min } : null,
+    dureeMin: cat.duree_min,
+    pauseMin: salonLigne.pause_min,
+    coiffeuses: coiffeuses.map((c) => ({ id: c.id, occupations: (c.occupations ?? []).map((o) => ({ debutMin: Math.round(o.debut), finMin: Math.round(o.fin) })) })),
+    maintenantMin: jour === aujourdhui ? now.getUTCHours() * 60 + now.getUTCMinutes() : jour < aujourdhui ? 1441 : undefined,
+  });
+  return ok({ creneaux: liste, dureeMin: cat.duree_min, prix: cat.prix });
 }

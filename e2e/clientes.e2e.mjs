@@ -60,7 +60,7 @@ let reference = "";
 let coiffeuseSouhaitee = "";
 
 await verifier("Accueil public : présentation et services", async () => {
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().waitFor();
   await cliente.getByRole("heading", { name: "Choisissez votre service" }).waitFor();
   await largeurOk(cliente, "accueil");
@@ -69,7 +69,7 @@ await verifier("Accueil public : présentation et services", async () => {
 
 await verifier("Formulaire : le nom et le numéro sont obligatoires", async () => {
   await cliente.getByRole("link", { name: "Demander un rendez-vous" }).first().click();
-  await cliente.waitForURL(`${BASE}/reserver`);
+  await cliente.waitForURL(`${BASE}/s/la-coquette-du-faso/reserver`);
   await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
   await cliente.getByText("Indiquez votre nom.").waitFor();
   await cliente.getByText(/numéro WhatsApp \(8 chiffres\)/).waitFor();
@@ -150,7 +150,7 @@ await verifier("Le rendez-vous apparaît chez la secrétaire et n'est plus une d
 
 let reference2 = "";
 await verifier("Refus avec motif, visible par la cliente (FR-B06)", async () => {
-  await cliente.goto(`${BASE}/reserver`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
   await cliente.getByLabel(/^Votre nom/).fill(NOM2);
   await cliente.getByLabel("Votre numéro WhatsApp").fill(TEL);
   await cliente.getByRole("button", { name: "Envoyer ma demande" }).click();
@@ -180,7 +180,7 @@ await verifier("La gérante renseigne le WhatsApp du salon ; l'accueil le propos
   await secretaire.getByLabel("Numéro WhatsApp du salon").fill("56 46 58 88");
   await secretaire.getByRole("button", { name: "Enregistrer" }).first().click();
   await secretaire.getByText("Numéro WhatsApp du salon enregistré").waitFor();
-  await cliente.goto(`${BASE}/`);
+  await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
   await cliente.getByRole("link", { name: "Écrire au salon" }).first().waitFor();
 });
 
@@ -206,7 +206,7 @@ if (PHOTO) {
   });
 
   await verifier("La cliente choisit le modèle sur l'accueil et l'envoie (FR-C04, FR-C05)", async () => {
-    await cliente.goto(`${BASE}/`);
+    await cliente.goto(`${BASE}/s/la-coquette-du-faso`);
     await cliente.getByRole("heading", { name: "Nos réalisations" }).waitFor();
     await capture(cliente, "10-accueil-modeles");
     await cliente.getByRole("link", { name: new RegExp(`Nattes et vanilles ${SUFFIXE}`) }).click();

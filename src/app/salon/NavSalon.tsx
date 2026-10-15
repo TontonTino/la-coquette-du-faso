@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { IconChart, IconHome, IconImage, IconScissors, IconUsers } from "@/components/ui/icons";
+import { IconChart, IconClock, IconHome, IconImage, IconScissors, IconUsers } from "@/components/ui/icons";
 
 export function NavSalon({ gerante }: { gerante: boolean }) {
   const pathname = usePathname();
@@ -15,6 +15,7 @@ export function NavSalon({ gerante }: { gerante: boolean }) {
           { href: "/salon/modeles", label: "Modèles", icone: <IconImage /> },
           { href: "/salon/bilan", label: "Bilan", icone: <IconChart /> },
           { href: "/salon/equipe", label: "Équipe", icone: <IconUsers /> },
+          { href: "/salon/reglages", label: "Réglages", icone: <IconClock /> },
         ]
       : []),
   ];

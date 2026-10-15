@@ -39,7 +39,7 @@ const debordement = (p) => p.evaluate(() => document.documentElement.scrollWidth
 const p = await page(390);
 
 await verifier("Formulaire : envoyer sans nom ni numéro affiche les erreurs et place le curseur dans le premier champ", async () => {
-  await p.goto(`${BASE}/reserver`);
+  await p.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
   await p.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
   await p.getByRole("button", { name: "Envoyer ma demande" }).click();
   await p.getByRole("alert").filter({ hasText: "Indiquez votre nom." }).waitFor();
@@ -92,7 +92,7 @@ await verifier("Suivi : l'état est écrit en toutes lettres, avec le salon et u
 for (const l of LARGEURS) {
   await verifier(`Largeur ${l} px : /reserver et le suivi sans débordement horizontal`, async () => {
     const q = await page(l);
-    await q.goto(`${BASE}/reserver`);
+    await q.goto(`${BASE}/s/la-coquette-du-faso/reserver`);
     await q.getByRole("button", { name: "Envoyer ma demande" }).waitFor();
     let d = await debordement(q);
     if (d > 0) throw new Error(`/reserver déborde de ${d}px`);

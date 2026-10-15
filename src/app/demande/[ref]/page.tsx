@@ -46,7 +46,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const d = await suiviDemande(ref.toUpperCase());
   if (!d) notFound();
   const slug = d.salonSlug ?? SALON_PUBLIC;
-  const base = baseDuSalon(slug, slug === SALON_PUBLIC);
+  const base = baseDuSalon(slug);
   const e = ETATS[d.statut] ?? ETATS.demandee;
   const ac = await acomptePourSuivi(d.reference);
   const acompteOuvert = ["demandee", "prevue"].includes(d.statut);
