@@ -1,17 +1,18 @@
 import Image from "next/image";
+import type { LogoVitrine } from "@/lib/salon/vitrine";
 
 /**
- * Emplacement unique du logo. Le fichier `public/brand/logo.png` est le logo officiel fourni par le salon
- * (fond sombre : les angles arrondis le présentent comme une pastille sur les zones sombres de l'application).
- * Le remplacer suffit à mettre à jour toute l'application.
+ * Logo d'un salon (ses fichiers vivent dans `public/`). Sans logo, rien ne s'affiche : le nom du salon suffit.
+ * Les angles arrondis présentent le logo comme une pastille sur les zones sombres de l'application.
  */
-export function Logo({ size = 44, priority }: { size?: number; priority?: boolean }) {
+export function Logo({ logo, size = 44, priority }: { logo: LogoVitrine | null; size?: number; priority?: boolean }) {
+  if (!logo) return null;
   return (
     <Image
-      src="/brand/logo.png"
-      alt="Logo La Coquette du Faso"
+      src={logo.src}
+      alt={logo.alt}
       width={size}
-      height={Math.round((size * 753) / 681)}
+      height={Math.round((size * logo.hauteur) / logo.largeur)}
       priority={priority}
       className="rounded-[14%]"
     />

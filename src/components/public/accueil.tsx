@@ -27,7 +27,7 @@ function titreAvecAccent(titre: string) {
  * Première vue. Mobile : la photo occupe tout l'écran, le titre s'appuie sur un dégradé de la couleur de marque.
  * Ordinateur : texte à gauche, photo en arche à droite (comme les miroirs du salon). Sans photo : aplat de marque.
  */
-export function Couverture({ vitrine, horaires }: { vitrine: Vitrine; horaires: string | null }) {
+export function Couverture({ vitrine, horaires, base }: { vitrine: Vitrine; horaires: string | null; base: string }) {
   const img = vitrine.couverture;
   return (
     <section className="surface-sombre relative overflow-hidden bg-marque text-white">
@@ -51,7 +51,7 @@ export function Couverture({ vitrine, horaires }: { vitrine: Vitrine; horaires: 
           <h1 className="mt-3 max-w-[12ch] font-display text-[3.5rem] leading-[0.9] font-bold text-balance sm:max-w-[14ch] sm:text-[5rem] lg:text-[5.5rem]">{titreAvecAccent(vitrine.titre)}</h1>
           <p className="mt-5 max-w-md text-base leading-relaxed text-white/90">{vitrine.accroche}</p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link href="/reserver" className={buttonClasses("or", "lg", "w-full sm:w-auto")}>
+            <Link href={`${base}/reserver`} className={buttonClasses("or", "lg", "w-full sm:w-auto")}>
               Demander un rendez-vous
             </Link>
             <a href="#prestations" className="inline-flex min-h-11 items-center justify-center text-sm font-medium text-white underline decoration-detail decoration-2 underline-offset-8">
@@ -106,12 +106,14 @@ export function CartePrestation({
   photo,
   types,
   ton,
+  base,
 }: {
   titre: string;
   sousTitre: string;
   photo?: PhotoVitrine | null;
   types: { id: string; nom: string }[];
   ton: "photo" | "terracotta";
+  base: string;
 }) {
   return (
     <article className="overflow-hidden rounded-[2rem] bg-white shadow-carte">
@@ -132,7 +134,7 @@ export function CartePrestation({
         <ul className="mt-3 flex flex-wrap gap-2">
           {types.map((t) => (
             <li key={t.id}>
-              <Link href={`/reserver?type=${t.id}`} className="inline-flex min-h-11 items-center rounded-full border border-champ bg-white px-4 text-sm font-medium hover:bg-accent-pale">
+              <Link href={`${base}/reserver?type=${t.id}`} className="inline-flex min-h-11 items-center rounded-full border border-champ bg-white px-4 text-sm font-medium hover:bg-accent-pale">
                 {t.nom}
               </Link>
             </li>

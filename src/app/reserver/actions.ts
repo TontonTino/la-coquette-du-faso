@@ -2,7 +2,6 @@
 
 import type { Resultat } from "@/lib/salon/types";
 import { creerDemande } from "@/server/salon/service";
-import { SALON_PUBLIC } from "@/server/salon/public-config";
 
 /**
  * Action publique (sans connexion) : une cliente envoie une demande de rendez-vous.
@@ -11,7 +10,7 @@ import { SALON_PUBLIC } from "@/server/salon/public-config";
 const texte = (v: unknown, max = 300) => (typeof v === "string" ? v.slice(0, max) : "");
 const idOuNull = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 40) : null);
 
-export async function envoyerDemandeAction(s: {
+export async function envoyerDemandeAction(slug: string, s: {
   clientNom: string;
   clientTel: string;
   categorieId: string | null;
@@ -23,7 +22,7 @@ export async function envoyerDemandeAction(s: {
   piege: string;
 }): Promise<Resultat<{ reference: string }>> {
   try {
-    return await creerDemande(SALON_PUBLIC, {
+    return await creerDemande(texte(slug, 60), {
       clientNom: texte(s?.clientNom, 80),
       clientTel: texte(s?.clientTel, 30),
       categorieId: idOuNull(s?.categorieId),

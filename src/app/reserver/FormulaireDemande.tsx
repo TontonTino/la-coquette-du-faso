@@ -117,7 +117,7 @@ export function FormulaireDemande({
       return;
     }
     start(async () => {
-      const r = await envoyerDemandeAction({
+      const r = await envoyerDemandeAction(salon.slug, {
         clientNom: nom,
         clientTel: tel,
         categorieId: type || null,

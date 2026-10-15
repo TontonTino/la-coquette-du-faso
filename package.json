@@ -15,12 +15,14 @@
     "test:e2e": "node e2e/demo.e2e.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:seed": "node scripts/db-seed.mts",
+    "salon:creer": "node --no-warnings scripts/salon-creer.mts",
     "test:e2e:salon": "node e2e/salon.e2e.mjs",
     "test:e2e:clientes": "node e2e/clientes.e2e.mjs",
     "test:e2e:equipe": "node e2e/equipe-avis-videos.e2e.mjs",
     "vercel-build": "node scripts/db-migrate.mjs && next build",
     "test:e2e:design": "node e2e/clientes-design.e2e.mjs",
-    "test:e2e:accueil": "node e2e/accueil.e2e.mjs"
+    "test:e2e:accueil": "node e2e/accueil.e2e.mjs",
+    "test:e2e:multi": "node e2e/multi-salon.e2e.mjs"
   },
   "dependencies": {
     "@vercel/blob": "2.8.1",

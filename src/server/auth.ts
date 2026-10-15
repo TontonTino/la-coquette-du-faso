@@ -22,6 +22,7 @@ export interface Utilisatrice {
   role: Role;
   salonId: string;
   salonNom: string;
+  salonSlug: string | null;
 }
 
 const empreinte = (jeton: string) => createHash("sha256").update(jeton).digest("hex");
@@ -66,13 +67,13 @@ export async function seDeconnecter() {
 export const utilisatriceCourante = cache(async (): Promise<Utilisatrice | null> => {
   const jeton = (await cookies()).get(COOKIE)?.value;
   if (!jeton || jeton.length > 100) return null;
-  const [u] = await db()<{ id: string; nom: string; role: Role; salon_id: string; salon_nom: string }[]>`
-    SELECT u.id, u.nom, u.role, u.salon_id, s.nom AS salon_nom
+  const [u] = await db()<{ id: string; nom: string; role: Role; salon_id: string; salon_nom: string; salon_slug: string | null }[]>`
+    SELECT u.id, u.nom, u.role, u.salon_id, s.nom AS salon_nom, s.slug AS salon_slug
     FROM session se
     JOIN utilisateur u ON u.id = se.utilisateur_id
     JOIN salon s ON s.id = u.salon_id
     WHERE se.jeton_hash = ${empreinte(jeton)} AND se.expire_le > now() AND u.actif`;
-  return u ? { id: u.id, nom: u.nom, role: u.role, salonId: u.salon_id, salonNom: u.salon_nom } : null;
+  return u ? { id: u.id, nom: u.nom, role: u.role, salonId: u.salon_id, salonNom: u.salon_nom, salonSlug: u.salon_slug } : null;
 });
 
 export const ctxDe = (u: Utilisatrice): Ctx => ({ salonId: u.salonId, utilisateurId: u.id, role: u.role });

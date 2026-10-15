@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql", "007_identite_salon.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -620,6 +620,61 @@ suite("service salon (PostgreSQL)", () => {
       const j = await svc.journee(secA, "2026-10-13", NOW);
       const toutes = [...j.aVenir, ...j.attente, ...j.enCours].find((x) => x.clientNom.startsWith("Aminata"));
       expect(toutes?.acomptePaye).toEqual({ montant: 2000, mode: "test" });
+    });
+  });
+  describe("ouverture d'un second salon (isolation)", () => {
+    it("crée un salon vide avec ses comptes, sans aucune donnée fictive", async () => {
+      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      const r = await ouvrirSalon(admin, {
+        nom: "Black Roots Salon",
+        whatsapp: "70 12 34 56",
+        services: [{ nom: "Tresses", famille: "coiffure" }, { nom: "Manucure", famille: "ongles" }],
+        theme: { marque: "#222222" },
+        textes: { titre: "Chez *Black Roots*" },
+        motsDePasse: { gerante: "mot-de-passe-gerante", secretaire: "mot-de-passe-secretaire" },
+      });
+      expect(r.slug).toBe("black-roots-salon");
+      expect(r.comptes.map((x) => x.identifiant)).toEqual(["gerante.black-roots-salon", "secretaire.black-roots-salon"]);
+      const compte = { salonId: r.salonId, utilisateurId: "", role: "gerante" as const };
+      const pub = await svc.salonPublic("black-roots-salon");
+      expect(pub).toMatchObject({ nom: "Black Roots Salon", whatsapp: "+226 70 12 34 56", coiffeuses: [], modeles: [], videos: [] });
+      expect(pub?.categories.map((c) => `${c.nom}:${c.famille}`)).toEqual(["Tresses:coiffure", "Manucure:ongles"]);
+      expect(pub?.themeBrut).toEqual({ marque: "#222222" });
+      expect(pub?.vitrineBrute).toEqual({ titre: "Chez *Black Roots*" });
+      expect((await svc.listerEquipe(compte)).coiffeuses).toEqual([]);
+      expect(await svc.demandesEnAttente(compte)).toEqual([]);
+      expect(await svc.listerModeles(compte)).toEqual([]);
+      expect(await svc.listerVideos(compte)).toEqual([]);
+    });
+
+    it("les demandes, l'équipe et les services d'un salon restent chez lui", async () => {
+      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      const r = await ouvrirSalon(admin, { nom: "Salon Neuf", services: [{ nom: "Tissage", famille: "coiffure" }] });
+      const neuf = { salonId: r.salonId, utilisateurId: "", role: "secretaire" as const };
+      const d = await svc.creerDemande("salon-a", demande({ jour: "2026-10-13" }), NOW);
+      if (!d.ok) throw new Error(d.erreur);
+      expect(await svc.demandesEnAttente(neuf)).toEqual([]);
+      expect((await svc.demandesEnAttente(secA)).length).toBe(1);
+      const cree = await svc.creerDemande("salon-neuf", { ...demande({ jour: "2026-10-13" }), categorieId: null }, NOW);
+      if (!cree.ok) throw new Error(cree.erreur);
+      expect((await svc.demandesEnAttente(neuf)).map((x) => x.reference)).toEqual([cree.valeur.reference]);
+      expect((await svc.demandesEnAttente(secA)).map((x) => x.reference)).toEqual([d.valeur.reference]);
+      expect((await svc.suiviDemande(cree.valeur.reference))?.salonSlug).toBe("salon-neuf");
+      // Un type du salon A ne peut pas être demandé au salon neuf
+      expect(await svc.creerDemande("salon-neuf", demande({ categorieId: c.tresses }), NOW)).toEqual({ ok: false, erreur: "Type de service inconnu." });
+    });
+
+    it("refuse un doublon, un nom invalide, des couleurs illisibles et un mot de passe trop court", async () => {
+      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      await ouvrirSalon(admin, { nom: "Salon Un" });
+      await expect(ouvrirSalon(admin, { nom: "Salon Un" })).rejects.toThrow(/existe déjà/);
+      await expect(ouvrirSalon(admin, { nom: "X" })).rejects.toThrow(/entre 2 et 80/);
+      await expect(ouvrirSalon(admin, { nom: "Salon Deux", theme: { marque: "#ffff00" } })).rejects.toThrow(/pas assez lisibles/);
+      await expect(ouvrirSalon(admin, { nom: "Salon Trois", motsDePasse: { gerante: "court" } })).rejects.toThrow(/au moins 10/);
+      await expect(ouvrirSalon(admin, { nom: "Salon Quatre", whatsapp: "123" })).rejects.toThrow(/WhatsApp invalide/);
+      await expect(ouvrirSalon(admin, { nom: "Salon Cinq", services: [{ nom: "Tresses", famille: "coiffure" }, { nom: "tresses", famille: "coiffure" }] })).rejects.toThrow(/deux fois/);
+      // Rien n'a été créé par les tentatives refusées
+      expect(await admin`SELECT 1 FROM salon WHERE slug IN ('salon-deux','salon-trois','salon-quatre','salon-cinq','x')`).toHaveLength(0);
     });
   });
 });

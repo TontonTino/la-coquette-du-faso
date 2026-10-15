@@ -686,7 +686,11 @@ export interface CoiffeusePublique {
 }
 
 export interface SalonPublic {
+  slug: string;
   nom: string;
+  /** Couleurs et textes propres au salon (enregistrés en base, validés à la lecture). */
+  themeBrut: unknown;
+  vitrineBrute: unknown;
   whatsapp: string | null;
   telephone: string | null;
   email: string | null;
@@ -702,7 +706,10 @@ export interface SalonPublic {
 
 interface LigneSalon {
   id: string;
+  slug: string;
   nom: string;
+  theme: unknown;
+  vitrine: unknown;
   whatsapp: string | null;
   telephone: string | null;
   email: string | null;
@@ -711,10 +718,16 @@ interface LigneSalon {
   carte_url: string | null;
 }
 
+/** Identité d'un salon pour l'en-tête des pages publiques : nom, couleurs, textes. Null si le salon n'existe pas. */
+export async function identiteSalon(slug: string): Promise<{ nom: string; theme: unknown; vitrine: unknown } | null> {
+  const s = await salonParSlug(slug);
+  return s ? { nom: s.nom, theme: s.theme, vitrine: s.vitrine } : null;
+}
+
 async function salonParSlug(slug: string): Promise<LigneSalon | null> {
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) return null;
   const [s] = await db()<LigneSalon[]>`
-    SELECT id, nom, whatsapp, telephone, email, adresse, horaires, carte_url FROM salon WHERE slug = ${slug}`;
+    SELECT id, slug, nom, theme, vitrine, whatsapp, telephone, email, adresse, horaires, carte_url FROM salon WHERE slug = ${slug}`;
   return s ?? null;
 }
 
@@ -730,7 +743,10 @@ export async function salonPublic(slug: string): Promise<SalonPublic | null> {
     lireVideos(ctx, false),
   ]);
   return {
+    slug: s.slug,
     nom: s.nom,
+    themeBrut: s.theme,
+    vitrineBrute: s.vitrine,
     whatsapp: s.whatsapp,
     telephone: s.telephone,
     email: s.email,
@@ -827,6 +843,8 @@ export async function creerDemande(slug: string, s: SaisieDemande, now = new Dat
 export interface SuiviDemande {
   reference: string;
   salonNom: string;
+  /** Identifiant public du salon (null si le salon n'a pas de page publique). */
+  salonSlug: string | null;
   salonWhatsapp: string | null;
   prenom: string;
   statut: Statut;
@@ -846,12 +864,12 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
   if (!estReference(reference)) return null;
   const [r] = await db()<
     {
-      prestation_id: string; reference: string; salon_nom: string; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
+      prestation_id: string; reference: string; salon_nom: string; salon_slug: string | null; salon_whatsapp: string | null; client_nom: string; statut: Statut; jour: string;
       souhait_moment: Moment | null; debut: Date | null; categorie: string | null; coiffeuses: string[]; motif_refus: string | null;
       m_id: string | null; m_nom: string | null; m_maj: Date | null;
     }[]
   >`
-    SELECT p.id AS prestation_id, p.reference, s.nom AS salon_nom, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
+    SELECT p.id AS prestation_id, p.reference, s.nom AS salon_nom, s.slug AS salon_slug, s.whatsapp AS salon_whatsapp, p.client_nom, p.statut, p.jour, p.souhait_moment, p.debut,
            k.nom AS categorie, p.motif_refus, m.id AS m_id, m.nom AS m_nom, m.maj_le AS m_maj,
            COALESCE((SELECT array_agg(c.nom ORDER BY c.nom) FROM affectation a JOIN coiffeuse c ON c.id = a.coiffeuse_id
                      WHERE a.prestation_id = p.id AND a.active), '{}') AS coiffeuses
@@ -874,6 +892,7 @@ export async function suiviDemande(reference: string): Promise<SuiviDemande | nu
   return {
     reference: r.reference,
     salonNom: r.salon_nom,
+    salonSlug: r.salon_slug,
     salonWhatsapp: r.salon_whatsapp,
     prenom: r.client_nom.trim().split(/\s+/)[0],
     statut: r.statut,

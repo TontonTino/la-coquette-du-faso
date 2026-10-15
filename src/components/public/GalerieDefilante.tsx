@@ -27,7 +27,7 @@ type Vignette = { cle: string; modele: CarteModele } | { cle: string; photo: Pho
  * et la cliente peut la faire glisser au doigt (le défilement reprend ensuite).
  * Pas de défilement automatique si le téléphone demande moins d'animations.
  */
-export function GalerieDefilante({ modeles, photos = [] }: { modeles: CarteModele[]; photos?: PhotoVitrine[] }) {
+export function GalerieDefilante({ modeles, photos = [], base = "" }: { modeles: CarteModele[]; photos?: PhotoVitrine[]; base?: string }) {
   const ref = useRef<HTMLUListElement>(null);
   // Les photos du salon d'abord (simples images), puis les modèles que l'on peut demander.
   const elements: Vignette[] = [...photos.map((photo) => ({ cle: photo.src, photo })), ...modeles.map((modele) => ({ cle: modele.id, modele }))];
@@ -106,7 +106,7 @@ export function GalerieDefilante({ modeles, photos = [] }: { modeles: CarteModel
     const m = e.modele;
     return (
       <li key={cle} className={largeur} aria-hidden={copie || undefined}>
-        <Link href={`/reserver?modele=${m.id}`} className="group block" tabIndex={copie ? -1 : undefined}>
+        <Link href={`${base}/reserver?modele=${m.id}`} className="group block" tabIndex={copie ? -1 : undefined}>
           <span className="block overflow-hidden rounded-[1.5rem] bg-sable shadow-photo">
             {/* eslint-disable-next-line @next/next/no-img-element -- photo servie par l'application, déjà réduite */}
             <img src={m.photoUrl} alt={m.nom} loading="lazy" draggable={false} className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />

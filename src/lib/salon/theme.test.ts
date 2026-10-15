@@ -34,3 +34,16 @@ describe("thème des salons", () => {
     expect(v["--color-action"]).toBe("#a44e3a");
   });
 });
+
+describe("couleurs enregistrées en base", () => {
+  it("n'accepte que des couleurs #rrggbb connues, le reste est ignoré", async () => {
+    const { lireSurchargeTheme } = await import("./theme");
+    expect(lireSurchargeTheme({ marque: "#123456", action: "rouge", piege: "#ffffff", detail: "#ABCDEF" })).toEqual({ marque: "#123456", detail: "#abcdef" });
+    for (const brut of [null, undefined, "x", 3, [], ["#123456"]]) expect(lireSurchargeTheme(brut)).toEqual({});
+  });
+
+  it("un thème de base illisible est écarté : on garde le thème par défaut", () => {
+    expect(themeDuSalon("nouveau-salon", { marque: "#ffff00" })).toEqual(THEME_PAR_DEFAUT);
+    expect(themeDuSalon("nouveau-salon", { marque: "#222222" }).marque).toBe("#222222");
+  });
+});

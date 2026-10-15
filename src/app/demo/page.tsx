@@ -2,6 +2,7 @@ import Link from "next/link";
 import { DEMO_SCENARIO, SALON, SERVICES, STYLISTS, formatWorkDays, getService, getStylist } from "@/lib/catalog";
 import { capitalize, formatDateLong, formatDuration, formatFcfa, formatTime } from "@/lib/time";
 import { Logo } from "@/components/layout/Logo";
+import { LOGO_COQUETTE } from "@/lib/salon/vitrine";
 import { ButtonLink } from "@/components/ui/Button";
 import { Avatar, Card, SectionTitle } from "@/components/ui/primitives";
 import { MyNextAppointment } from "./MyNextAppointment";
@@ -17,7 +18,7 @@ export default function HomePage() {
       <section className="texture-noire relative -mx-4 -mt-6 overflow-hidden px-6 pt-10 pb-12 text-white sm:mx-0 sm:mt-0 sm:rounded-3xl sm:px-12 sm:py-14">
         <div className="relative z-10 flex flex-col items-center text-center md:flex-row md:items-center md:gap-12 md:text-left">
           <div className="mb-6 md:order-2 md:mb-0">
-            <Logo size={150} priority />
+            <Logo logo={LOGO_COQUETTE} size={150} priority />
           </div>
           <div className="flex-1">
             <p className="text-[11px] tracking-[0.3em] text-or uppercase">Salon de beauté · {SALON.city}</p>

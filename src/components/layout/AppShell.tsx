@@ -8,6 +8,7 @@ import { demoActions } from "@/store/demo-store";
 import { ConfirmSheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { IconCalendar, IconCalendarPlus, IconChart, IconClock, IconHome, IconList, IconScissors, IconTag, IconUser, IconUsers } from "@/components/ui/icons";
+import { LOGO_COQUETTE } from "@/lib/salon/vitrine";
 import { Logo } from "./Logo";
 
 type Space = "cliente" | "coiffeuse" | "gerante";
@@ -62,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="texture-noire sticky top-0 z-40 border-b border-or/25 text-white">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <Link href="/demo" className="flex min-w-0 items-center gap-3" aria-label="La Coquette du Faso, accueil">
-            <Logo size={40} priority />
+            <Logo logo={LOGO_COQUETTE} size={40} priority />
             <span className="hidden min-w-0 leading-tight whitespace-nowrap sm:block">
               <span className="block font-display text-lg font-semibold tracking-wide text-or">La Coquette du Faso</span>
               <span className="block text-[10px] tracking-[0.22em] text-white/60 uppercase">Salon de beauté · Ouagadougou</span>

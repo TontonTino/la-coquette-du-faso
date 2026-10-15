@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { HabillagePublic } from "@/components/public/Habillage";
+import { baseDuSalon, SALON_PUBLIC } from "@/server/salon/public-config";
 import { Alerte, Squelette } from "@/components/public/formulaire";
 import { buttonClasses } from "@/components/ui/Button";
 import { IconCheck, IconWhatsApp } from "@/components/ui/icons";
@@ -20,11 +21,9 @@ export const metadata: Metadata = { title: "Suivi de ma demande", robots: { inde
 
 export default function PageSuivi({ params }: PageProps<"/demande/[ref]">) {
   return (
-    <HabillagePublic>
-      <Suspense fallback={<Squelette className="h-72 rounded-[1.75rem]" />}>
-        <Suivi params={params} />
-      </Suspense>
-    </HabillagePublic>
+    <Suspense fallback={<div className="min-h-dvh bg-lin px-4 py-6"><Squelette className="mx-auto h-72 max-w-3xl rounded-[1.75rem]" /></div>}>
+      <Suivi params={params} />
+    </Suspense>
   );
 }
 
@@ -34,7 +33,7 @@ const ETATS: Record<string, { titre: string; texte: string; ton: "attente" | "ok
   prevue: { titre: "Rendez-vous confirmé", texte: "Le salon vous attend.", ton: "ok", etiquette: "Confirmé par le salon" },
   en_attente: { titre: "Vous êtes arrivée", texte: "Le salon vous a bien enregistrée.", ton: "ok", etiquette: "Au salon" },
   en_cours: { titre: "Prestation en cours", texte: "", ton: "ok", etiquette: "Au salon" },
-  terminee: { titre: "Merci de votre visite !", texte: "À bientôt à La Coquette du Faso.", ton: "ok", etiquette: "Terminé" },
+  terminee: { titre: "Merci de votre visite !", texte: "À bientôt au salon.", ton: "ok", etiquette: "Terminé" },
   refusee: { titre: "Demande non acceptée", texte: "", ton: "ko", etiquette: "Non acceptée" },
   annulee: { titre: "Rendez-vous annulé", texte: "Vous pouvez faire une nouvelle demande.", ton: "ko", etiquette: "Annulé" },
   absente: { titre: "Rendez-vous manqué", texte: "Vous pouvez faire une nouvelle demande.", ton: "ko", etiquette: "Manqué" },
@@ -46,6 +45,8 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const { ref } = await params;
   const d = await suiviDemande(ref.toUpperCase());
   if (!d) notFound();
+  const slug = d.salonSlug ?? SALON_PUBLIC;
+  const base = baseDuSalon(slug, slug === SALON_PUBLIC);
   const e = ETATS[d.statut] ?? ETATS.demandee;
   const ac = await acomptePourSuivi(d.reference);
   const acompteOuvert = ["demandee", "prevue"].includes(d.statut);
@@ -55,6 +56,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
   const fond = e.ton === "ok" ? "bg-marque text-white" : e.ton === "ko" ? "bg-rouge-pale text-encre" : "bg-white text-encre shadow-carte";
 
   return (
+    <HabillagePublic slug={slug} base={base}>
     <div>
       {(d.statut === "demandee" || (acompteOuvert && ac.enAttente)) && <Actualiser />}
       <p className="text-sm text-sourdine">
@@ -154,7 +156,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
       )}
       {d.statut === "terminee" && d.aNoter.length > 0 && <NoterCoiffeuses reference={d.reference} coiffeuses={d.aNoter} />}
       {(e.ton === "ko" || d.statut === "terminee") && (
-        <Link href="/reserver" className={buttonClasses("action", "lg", "mt-5 w-full")}>
+        <Link href={`${base}/reserver`} className={buttonClasses("action", "lg", "mt-5 w-full")}>
           Faire une nouvelle demande
         </Link>
       )}
@@ -164,6 +166,7 @@ async function Suivi({ params }: { params: PageProps<"/demande/[ref]">["params"]
           : "Gardez ce lien : il montre l'état de votre rendez-vous."}
       </p>
     </div>
+    </HabillagePublic>
   );
 }
 

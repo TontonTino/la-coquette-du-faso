@@ -21,7 +21,7 @@ function lireAutoplay() {
  * Économe en données mobiles : seule la vidéo en vue est chargée et jouée ; elle démarre sans le son.
  * Une fois le son activé, il reste activé pour les vidéos suivantes.
  */
-export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Modele[] }) {
+export function FilVideos({ videos, modeles, base }: { videos: Video[]; modeles: Modele[]; base: string }) {
   const routeur = useRouter();
   const piste = useRef<HTMLUListElement>(null);
   const ratios = useRef(new Map<string, number>());
@@ -71,14 +71,14 @@ export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Model
     if (!d) return;
     const dx = e.changedTouches[0].clientX - d.x;
     const dy = Math.abs(e.changedTouches[0].clientY - d.y);
-    if (dx >= DISTANCE_RETOUR && dx > dy * 1.8) routeur.push("/");
+    if (dx >= DISTANCE_RETOUR && dx > dy * 1.8) routeur.push(base || "/");
   };
 
   return (
     <div className="relative bg-noir" onTouchStart={debut} onTouchEnd={fin}>
       <div className="pointer-events-none fixed inset-x-0 top-0 z-10 mx-auto flex max-w-[30rem] items-start justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <Link
-          href="/"
+          href={base || "/"}
           aria-label="Retour à l'accueil"
           className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-noir/60 text-white backdrop-blur"
         >
@@ -101,6 +101,7 @@ export function FilVideos({ videos, modeles }: { videos: Video[]; modeles: Model
             autoplay={autoplay}
             son={son}
             changerSon={() => setSon((s) => !s)}
+            base={base}
             indice={i === 0 && videos.length > 1 && actif === v.id}
           />
         ))}
@@ -116,6 +117,7 @@ function Carte({
   autoplay,
   son,
   changerSon,
+  base,
   indice,
 }: {
   video: Video;
@@ -124,6 +126,7 @@ function Carte({
   autoplay: boolean;
   son: boolean;
   changerSon: () => void;
+  base: string;
   indice: boolean;
 }) {
   const lecteur = useRef<HTMLVideoElement>(null);
@@ -223,7 +226,7 @@ function Carte({
           <p className="font-display text-2xl leading-tight font-bold">{video.titre}</p>
           {prix && <p className="text-sm text-white/75">{prix}</p>}
           <Link
-            href={modele ? `/reserver?modele=${modele.id}` : "/reserver"}
+            href={modele ? `${base}/reserver?modele=${modele.id}` : `${base}/reserver`}
             className="pointer-events-auto mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-or px-4 text-sm font-semibold text-noir hover:bg-or/90"
           >
             {modele ? "Je veux cette coiffure" : "Demander un rendez-vous"}

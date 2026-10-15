@@ -24,7 +24,7 @@ function zoneQuiDefile(depart: EventTarget | null): boolean {
  * Accueil : un balayage du doigt vers la gauche ouvre la page des vidéos.
  * Un petit onglet « Vidéos » sur le bord droit montre le chemin et sert aussi à l'ordinateur.
  */
-export function BalayageVideos({ children }: { children: ReactNode }) {
+export function BalayageVideos({ children, base }: { children: ReactNode; base: string }) {
   const routeur = useRouter();
   const depart = useRef<{ x: number; y: number; t: number; ok: boolean } | null>(null);
 
@@ -39,14 +39,14 @@ export function BalayageVideos({ children }: { children: ReactNode }) {
     const p = e.changedTouches[0];
     const dx = p.clientX - d.x;
     const dy = Math.abs(p.clientY - d.y);
-    if (dx <= -DISTANCE_MIN && -dx > dy * 1.8 && Date.now() - d.t < 900) routeur.push("/videos");
+    if (dx <= -DISTANCE_MIN && -dx > dy * 1.8 && Date.now() - d.t < 900) routeur.push(`${base}/videos`);
   };
 
   return (
     <div onTouchStart={debut} onTouchEnd={fin} onTouchCancel={() => (depart.current = null)}>
       {children}
       <Link
-        href="/videos"
+        href={`${base}/videos`}
         className="fixed top-1/2 right-0 z-20 flex min-h-12 -translate-y-1/2 items-center gap-1.5 rounded-l-full bg-noir/85 py-2 pr-2.5 pl-4 text-xs font-medium text-or shadow-photo backdrop-blur"
       >
         Vidéos

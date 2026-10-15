@@ -40,8 +40,28 @@ export const THEMES: Record<string, Partial<ThemeSalon>> = {
   "la-coquette-du-faso": {},
 };
 
-export function themeDuSalon(slug: string): ThemeSalon {
-  return { ...THEME_PAR_DEFAUT, ...THEMES[slug] };
+const CLES_THEME = ["marque", "action", "actionFort", "actionTexte", "accentTexte", "accentPale", "detail"] as const;
+const COULEUR = /^#[0-9a-f]{6}$/i;
+
+/** Ne garde de la base que des couleurs « #rrggbb » connues : tout le reste est ignoré. */
+export function lireSurchargeTheme(brut: unknown): Partial<ThemeSalon> {
+  if (!brut || typeof brut !== "object" || Array.isArray(brut)) return {};
+  const sortie: Partial<ThemeSalon> = {};
+  for (const cle of CLES_THEME) {
+    const v = (brut as Record<string, unknown>)[cle];
+    if (typeof v === "string" && COULEUR.test(v)) sortie[cle] = v.toLowerCase();
+  }
+  return sortie;
+}
+
+/**
+ * Thème d'un salon : défaut, puis surcharges du code, puis surcharges enregistrées en base.
+ * Si les couleurs de la base ne respectent pas les contrastes, elles sont écartées (lisibilité d'abord).
+ */
+export function themeDuSalon(slug: string, depuisBase?: unknown): ThemeSalon {
+  const base = { ...THEME_PAR_DEFAUT, ...THEMES[slug] };
+  const candidat = { ...base, ...lireSurchargeTheme(depuisBase) };
+  return verifierTheme(candidat).length === 0 ? candidat : base;
 }
 
 /** Variables CSS à poser sur le conteneur des pages clientes (Tailwind lit `--color-*`). */
