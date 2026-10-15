@@ -22,6 +22,8 @@ export interface LogoVitrine {
   hauteur: number;
   /** Petite icône de l'onglet du navigateur (facultative). */
   icone?: string;
+  /** Logo envoyé par l'opérateur MIA et servi par la base (image ordinaire, pas un fichier du dépôt). */
+  externe?: boolean;
 }
 
 export interface Vitrine {
@@ -46,6 +48,13 @@ export interface Vitrine {
 
 /** Logo de La Coquette du Faso : utilisé aussi par la démonstration (/demo). */
 export const LOGO_COQUETTE: LogoVitrine = { src: "/brand/logo.png", alt: "Logo La Coquette du Faso", largeur: 681, hauteur: 753, icone: "/brand/logo-192.png" };
+
+/** Logo enregistré en base (espace MIA) : `version` change à chaque nouvel envoi, ce qui renouvelle le cache du navigateur. */
+export function logoEnBase(slug: string, nom: string, version: string | null | undefined): LogoVitrine | null {
+  if (!version || !/^\d{1,15}$/.test(version)) return null;
+  const src = `/s/${slug}/logo?v=${version}`;
+  return { src, alt: `Logo ${nom}`, largeur: 1, hauteur: 1, icone: src, externe: true };
+}
 
 const DOSSIER = "/salons/la-coquette-du-faso";
 const photo = (nom: string, alt: string, largeur: number, hauteur: number, cadrage?: string): PhotoVitrine => ({ src: `${DOSSIER}/${nom}`, alt, largeur, hauteur, cadrage });

@@ -47,3 +47,17 @@ describe("couleurs enregistrées en base", () => {
     expect(themeDuSalon("nouveau-salon", { marque: "#222222" }).marque).toBe("#222222");
   });
 });
+
+describe("thème à partir de trois couleurs", () => {
+  it("dérive survol et fond de sélection de la couleur d'action, et ignore ce qui n'est pas #rrggbb", async () => {
+    const { themeDepuisCouleurs } = await import("./theme");
+    const t = themeDepuisCouleurs({ marque: "#123456", action: "#7a1f3d", detail: "rouge" });
+    expect(t.marque).toBe("#123456");
+    expect(t.detail).toBeUndefined();
+    expect(t.action).toBe("#7a1f3d");
+    expect(t.actionFort).toMatch(/^#[0-9a-f]{6}$/);
+    expect(t.actionFort).not.toBe(t.action);
+    expect(verifierTheme({ ...THEME_PAR_DEFAUT, ...t })).toEqual([]);
+    expect(themeDepuisCouleurs({})).toEqual({});
+  });
+});

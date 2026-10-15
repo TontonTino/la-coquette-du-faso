@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Logo } from "@/components/layout/Logo";
 import { IconSortie } from "@/components/ui/icons";
-import { vitrineDuSalon } from "@/lib/salon/vitrine";
+import { logoEnBase, vitrineDuSalon } from "@/lib/salon/vitrine";
 import { utilisatriceCourante } from "@/server/auth";
 import { deconnexionAction } from "./actions";
 import { NavSalon } from "./NavSalon";
@@ -41,7 +41,7 @@ async function QuiEstConnectee() {
   const u = await utilisatriceCourante();
   const role = u?.role === "gerante" ? "Gérante" : "Secrétaire";
   const libelle = !u ? "Espace salon" : u.nom === role ? `Connectée : ${role.toLowerCase()}` : `${u.nom} · ${role.toLowerCase()}`;
-  const logo = u?.salonSlug ? vitrineDuSalon(u.salonSlug).logo : null;
+  const logo = u?.salonSlug ? (logoEnBase(u.salonSlug, u.salonNom, u.salonLogoV) ?? vitrineDuSalon(u.salonSlug).logo) : null;
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <Logo logo={logo} size={34} />

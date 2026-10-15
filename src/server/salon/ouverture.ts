@@ -4,9 +4,9 @@
 // Ce fichier n'importe que du code sans alias « @/ » : il sert au script `npm run salon:creer` et aux tests.
 import { randomInt } from "node:crypto";
 import type postgres from "postgres";
-import { hashPassword, passwordProblem } from "../../src/server/password.ts";
-import { THEME_PAR_DEFAUT, lireSurchargeTheme, verifierTheme, type ThemeSalon } from "../../src/lib/salon/theme.ts";
-import { lireTextesVitrine } from "../../src/lib/salon/vitrine.ts";
+import { hashPassword, passwordProblem } from "../password.ts";
+import { THEME_PAR_DEFAUT, lireSurchargeTheme, verifierTheme, type ThemeSalon } from "../../lib/salon/theme.ts";
+import { lireTextesVitrine } from "../../lib/salon/vitrine.ts";
 
 export type Famille = "coiffure" | "ongles";
 
@@ -23,6 +23,8 @@ export interface DemandeOuverture {
   services?: { nom: string; famille: Famille }[];
   theme?: Partial<ThemeSalon>;
   textes?: { titre?: string; etiquette?: string; accroche?: string };
+  /** Logo déjà vérifié (voir logo.ts) ; facultatif. */
+  logo?: { octets: Uint8Array; type: string };
   /** Mots de passe imposés (tests) ; sinon générés au hasard. */
   motsDePasse?: { gerante?: string; secretaire?: string };
 }
@@ -115,9 +117,10 @@ export async function ouvrirSalon(sql: postgres.Sql, d: DemandeOuverture): Promi
     const [pris] = await tx`SELECT 1 FROM utilisateur WHERE identifiant IN (${ids.gerante}, ${ids.secretaire})`;
     if (pris) throw new Error("Les identifiants de connexion de ce salon existent déjà : choisissez un autre identifiant de salon.");
     const [salon] = await tx`
-      INSERT INTO salon (nom, slug, telephone, whatsapp, email, adresse, horaires, carte_url, theme, vitrine)
+      INSERT INTO salon (nom, slug, telephone, whatsapp, email, adresse, horaires, carte_url, theme, vitrine, logo, logo_type, logo_maj)
       VALUES (${d.nom.trim()}, ${slug}, ${tel}, ${wa}, ${d.email?.trim() || null}, ${d.adresse?.trim() || null}, ${d.horaires?.trim() || null},
-              ${d.carteUrl?.trim() || null}, ${theme ? tx.json(theme as Record<string, string>) : null}, ${textes ? tx.json(textes) : null})
+              ${d.carteUrl?.trim() || null}, ${theme ? tx.json(theme as Record<string, string>) : null}, ${textes ? tx.json(textes) : null},
+              ${d.logo ? Buffer.from(d.logo.octets) : null}, ${d.logo?.type ?? null}, ${d.logo ? new Date() : null})
       RETURNING id`;
     await tx`INSERT INTO utilisateur (salon_id, identifiant, nom, role, mot_de_passe_hash) VALUES
       (${salon.id}, ${ids.gerante}, 'Gérante', 'gerante', ${hashes.gerante}),

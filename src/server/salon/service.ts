@@ -716,18 +716,20 @@ interface LigneSalon {
   adresse: string | null;
   horaires: string | null;
   carte_url: string | null;
+  logo_v: string | null;
 }
 
 /** Identité d'un salon pour l'en-tête des pages publiques : nom, couleurs, textes. Null si le salon n'existe pas. */
-export async function identiteSalon(slug: string): Promise<{ nom: string; theme: unknown; vitrine: unknown } | null> {
+export async function identiteSalon(slug: string): Promise<{ nom: string; theme: unknown; vitrine: unknown; logoV: string | null } | null> {
   const s = await salonParSlug(slug);
-  return s ? { nom: s.nom, theme: s.theme, vitrine: s.vitrine } : null;
+  return s ? { nom: s.nom, theme: s.theme, vitrine: s.vitrine, logoV: s.logo_v } : null;
 }
 
 async function salonParSlug(slug: string): Promise<LigneSalon | null> {
   if (!/^[a-z0-9-]{3,60}$/.test(slug)) return null;
   const [s] = await db()<LigneSalon[]>`
-    SELECT id, slug, nom, theme, vitrine, whatsapp, telephone, email, adresse, horaires, carte_url FROM salon WHERE slug = ${slug}`;
+    SELECT id, slug, nom, theme, vitrine, whatsapp, telephone, email, adresse, horaires, carte_url,
+           (extract(epoch from logo_maj) * 1000)::bigint::text AS logo_v FROM salon WHERE slug = ${slug}`;
   return s ?? null;
 }
 

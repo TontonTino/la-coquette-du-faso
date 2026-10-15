@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lireServices, motDePasseAleatoire, numeroBurkina, slugDepuisNom } from "../../../scripts/lib/ouverture.mts";
+import { lireServices, motDePasseAleatoire, numeroBurkina, slugDepuisNom } from "./ouverture.ts";
 import { lireTextesVitrine, vitrineDuSalon } from "@/lib/salon/vitrine";
 
 describe("ouverture d'un salon : outils", () => {

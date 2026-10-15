@@ -111,3 +111,33 @@ export function verifierTheme(t: ThemeSalon): string[] {
   ];
   return exigences.filter(([, a, b]) => contraste(a, b) < AA_TEXTE).map(([nom, a, b]) => `${nom} : ${contraste(a, b).toFixed(2)}:1 (minimum ${AA_TEXTE}:1)`);
 }
+
+/* ---- Thème à partir de trois couleurs (formulaire de l'espace MIA) ---- */
+
+const versHex = (n: number) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, "0");
+function melanger(hex: string, avec: [number, number, number], part: number): string {
+  const h = hex.replace("#", "");
+  return "#" + [0, 2, 4].map((i, k) => versHex(parseInt(h.slice(i, i + 2), 16) * (1 - part) + avec[k] * part)).join("");
+}
+
+/**
+ * Trois couleurs choisies par l'opérateur → thème complet : le survol du bouton est la couleur d'action assombrie,
+ * le fond de sélection est la couleur d'action très éclaircie. Chaque couleur est facultative (défaut = thème MIA).
+ * Les contrastes sont vérifiés ensuite par `verifierTheme` : un choix illisible est refusé avec un message clair.
+ */
+export function themeDepuisCouleurs(c: { marque?: string; action?: string; detail?: string }): Partial<ThemeSalon> {
+  const t: Partial<ThemeSalon> = {};
+  const ok = (v?: string) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : undefined);
+  const marque = ok(c.marque);
+  const action = ok(c.action);
+  const detail = ok(c.detail);
+  if (marque) t.marque = marque;
+  if (detail) t.detail = detail;
+  if (action) {
+    t.action = action;
+    t.actionFort = melanger(action, [0, 0, 0], 0.1);
+    t.accentTexte = action;
+    t.accentPale = melanger(action, [255, 255, 255], 0.9);
+  }
+  return t;
+}

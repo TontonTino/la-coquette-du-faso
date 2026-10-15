@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Logo } from "@/components/layout/Logo";
 import { themeDuSalon, variablesCss } from "@/lib/salon/theme";
-import { vitrineDuSalon } from "@/lib/salon/vitrine";
+import { logoEnBase, vitrineDuSalon } from "@/lib/salon/vitrine";
 import { identiteSalonEnCache } from "@/server/salon/identite";
 
 /**
@@ -12,7 +12,7 @@ import { identiteSalonEnCache } from "@/server/salon/identite";
 export async function HabillagePublic({ slug, base, children, plein = false }: { slug: string; base: string; children: ReactNode; plein?: boolean }) {
   const id = await identiteSalonEnCache(slug);
   const nom = id?.nom ?? "Salon";
-  const logo = vitrineDuSalon(slug, id?.vitrine).logo;
+  const logo = logoEnBase(slug, nom, id?.logoV) ?? vitrineDuSalon(slug, id?.vitrine).logo;
   return (
     <div className="pages-clientes flex min-h-dvh flex-col bg-lin text-encre" style={variablesCss(themeDuSalon(slug, id?.theme))}>
       <header className="surface-sombre sticky top-0 z-30 border-b border-or/20 bg-noir text-white">

@@ -28,7 +28,7 @@ suite("service salon (PostgreSQL)", () => {
     process.env.DATABASE_URL = URL_TEST;
     admin = postgres(URL_TEST!, { max: 1, onnotice: () => {} });
     await admin.unsafe("DROP SCHEMA public CASCADE; CREATE SCHEMA public;");
-    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql", "007_identite_salon.sql"]) {
+    for (const f of ["001_schema_initial.sql", "002_competences.sql", "003_demandes_en_ligne.sql", "004_modeles_photo.sql", "005_equipe_avis_videos.sql", "006_acompte.sql", "007_identite_salon.sql", "008_espace_mia.sql"]) {
       await admin.unsafe(readFileSync(new URL(`../../../db/migrations/${f}`, import.meta.url), "utf8"));
     }
     svc = await import("./service");
@@ -624,7 +624,7 @@ suite("service salon (PostgreSQL)", () => {
   });
   describe("ouverture d'un second salon (isolation)", () => {
     it("crée un salon vide avec ses comptes, sans aucune donnée fictive", async () => {
-      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      const { ouvrirSalon } = await import("./ouverture.ts");
       const r = await ouvrirSalon(admin, {
         nom: "Black Roots Salon",
         whatsapp: "70 12 34 56",
@@ -648,7 +648,7 @@ suite("service salon (PostgreSQL)", () => {
     });
 
     it("les demandes, l'équipe et les services d'un salon restent chez lui", async () => {
-      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      const { ouvrirSalon } = await import("./ouverture.ts");
       const r = await ouvrirSalon(admin, { nom: "Salon Neuf", services: [{ nom: "Tissage", famille: "coiffure" }] });
       const neuf = { salonId: r.salonId, utilisateurId: "", role: "secretaire" as const };
       const d = await svc.creerDemande("salon-a", demande({ jour: "2026-10-13" }), NOW);
@@ -665,7 +665,7 @@ suite("service salon (PostgreSQL)", () => {
     });
 
     it("refuse un doublon, un nom invalide, des couleurs illisibles et un mot de passe trop court", async () => {
-      const { ouvrirSalon } = await import("../../../scripts/lib/ouverture.mts");
+      const { ouvrirSalon } = await import("./ouverture.ts");
       await ouvrirSalon(admin, { nom: "Salon Un" });
       await expect(ouvrirSalon(admin, { nom: "Salon Un" })).rejects.toThrow(/existe déjà/);
       await expect(ouvrirSalon(admin, { nom: "X" })).rejects.toThrow(/entre 2 et 80/);

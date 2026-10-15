@@ -9,7 +9,7 @@
 // Options : --nom (obligatoire) --slug --telephone --whatsapp --email --adresse --horaires --carte (lien https)
 //           --services "A, B, C:ongles" --marque "#3e2a22" --action "#a44e3a" --titre "..." --accroche "..."
 import postgres from "postgres";
-import { lireServices, ouvrirSalon, type DemandeOuverture } from "./lib/ouverture.mts";
+import { lireServices, ouvrirSalon, type DemandeOuverture } from "../src/server/salon/ouverture.ts";
 
 function lireArguments(argv: string[]): Record<string, string> {
   const sortie: Record<string, string> = {};

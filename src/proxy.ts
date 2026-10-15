@@ -6,6 +6,13 @@ import { NextResponse, type NextRequest } from "next/server";
  * côté serveur dans chaque page et chaque action (src/server/auth.ts).
  */
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    // Espace MIA : sauf la page de connexion, il faut un cookie « mia_admin » (vérifié pour de bon côté serveur).
+    if (request.nextUrl.pathname !== "/admin/connexion" && !request.cookies.has("mia_admin")) {
+      return NextResponse.redirect(new URL("/admin/connexion", request.url));
+    }
+    return NextResponse.next();
+  }
   if (!request.cookies.has("mia_session")) {
     return NextResponse.redirect(new URL("/connexion", request.url));
   }
@@ -13,5 +20,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/salon", "/salon/:path*"],
+  matcher: ["/salon", "/salon/:path*", "/admin", "/admin/:path*"],
 };
