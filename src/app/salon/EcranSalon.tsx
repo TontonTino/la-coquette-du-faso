@@ -85,7 +85,7 @@ export function EcranSalon({
     return <FormConfirmerDemande demande={ecran.demande} aujourdhui={aujourdhui} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
   if (ecran.type === "refuser") return <FormRefuserDemande demande={ecran.demande} salonNom={salonNom} onFini={retour} ouvrir={setEcran} />;
   if (ecran.type === "prevenir") return <Prevenir titre={ecran.titre} texte={ecran.texte} lien={ecran.lien} onFini={retour} />;
-  return <Liste journee={journee} demandes={demandes} ouvrir={setEcran} salonNom={salonNom} />;
+  return <Liste journee={journee} aujourdhui={aujourdhui} demandes={demandes} ouvrir={setEcran} salonNom={salonNom} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -124,7 +124,7 @@ function avancement(heureDebut: string | null, dureeMin: number): number {
 
 const lienTel = (tel: string) => lienWhatsApp(tel);
 
-function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; demandes: Demande[]; ouvrir: (e: Ecran) => void; salonNom: string }) {
+function Liste({ journee, aujourdhui, demandes, ouvrir, salonNom }: { journee: Journee; aujourdhui: string; demandes: Demande[]; ouvrir: (e: Ecran) => void; salonNom: string }) {
   const { enCours, lancer } = useAction();
   const toast = useToast();
   const [preparation, start] = useTransition();
@@ -139,13 +139,38 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
       ouvrir({ type: "prevenir", titre: "Demander son avis", texte, lien: lienWhatsApp(r.valeur.clientTel, texte) });
     });
   const lienAction = "min-h-11 rounded-full px-3 text-sm text-sourdine hover:bg-noir/5 hover:text-encre";
+  const router = useRouter();
+  const estAujourdhui = journee.jour === aujourdhui;
+  const aller = (j: string) => router.push(j === aujourdhui ? "/salon" : `/salon?jour=${j}`);
   return (
     <div>
+      <div className="mb-3 flex items-center gap-2" role="group" aria-label="Choisir le jour">
+        <button type="button" className="min-h-11 rounded-full border border-trait px-4 text-lg" aria-label="Jour précédent" onClick={() => aller(addDays(journee.jour, -1))}>
+          ‹
+        </button>
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Date affichée</span>
+          <input type="date" value={journee.jour} onChange={(e) => e.target.value && aller(e.target.value)} className="min-h-11 w-full min-w-0 rounded-xl border border-trait bg-white px-3 text-center font-medium" />
+        </label>
+        <button type="button" className="min-h-11 rounded-full border border-trait px-4 text-lg" aria-label="Jour suivant" onClick={() => aller(addDays(journee.jour, 1))}>
+          ›
+        </button>
+      </div>
+      {!estAujourdhui && (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">{capitalize(formatDateMedium(journee.jour))}</p>
+          <button type="button" className="min-h-11 rounded-full bg-noir px-4 text-sm font-medium text-white" onClick={() => aller(aujourdhui)}>
+            Aujourd&apos;hui
+          </button>
+        </div>
+      )}
+      {estAujourdhui && (
       <div role="group" className="texture-noire flex divide-x divide-white/10 overflow-hidden rounded-2xl text-white" aria-label="Coiffeuses aujourd'hui">
         <Compteur n={compteurs.libres} label={`libre${compteurs.libres > 1 ? "s" : ""}`} couleur="text-or" />
         <Compteur n={compteurs.occupees} label={`occupée${compteurs.occupees > 1 ? "s" : ""}`} couleur="text-white" />
         <Compteur n={compteurs.absentes} label={`absente${compteurs.absentes > 1 ? "s" : ""}`} couleur="text-white/50" />
       </div>
+      )}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button variant="noir" size="lg" className="px-2 text-[15px]" onClick={() => ouvrir({ type: "rdv" })}>
           + Rendez-vous
@@ -272,7 +297,7 @@ function Liste({ journee, demandes, ouvrir, salonNom }: { journee: Journee; dema
       </Section>
 
       <Section titre="Rendez-vous à venir" nombre={aVenir.length}>
-        {aVenir.length === 0 && <Vide>Plus de rendez-vous aujourd&apos;hui.</Vide>}
+        {aVenir.length === 0 && <Vide>{estAujourdhui ? "Plus de rendez-vous aujourd'hui." : "Aucun rendez-vous ce jour-là."}</Vide>}
         {aVenir.map((c) => (
           <Carte key={c.id} ton={c.aReattribuer.length > 0 || c.enRetard ? "rouge" : "neutre"}>
             <div className="flex items-start gap-3">

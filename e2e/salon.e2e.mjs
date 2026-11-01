@@ -210,6 +210,24 @@ await verifier("Écran Équipe de la gérante", async () => {
   await capture("10-equipe");
 });
 
+await verifier("Planning d'un autre jour : navigation par date", async () => {
+  await page.goto(`${BASE}/salon`);
+  const champ = page.getByLabel("Date affichée");
+  await champ.waitFor();
+  const aujourdhui = await champ.inputValue();
+  await page.getByRole("button", { name: "Jour suivant" }).click();
+  await attendre(() => location.search.startsWith("?jour="), "l'adresse n'a pas pris la date");
+  const demain = await champ.inputValue();
+  if (demain <= aujourdhui) throw new Error(`demain=${demain} aujourd'hui=${aujourdhui}`);
+  await page.getByRole("button", { name: "Aujourd'hui" }).waitFor();
+  const t = await texte();
+  if (!/Aucun rendez-vous ce jour-là|Rendez-vous à venir/.test(t)) throw new Error("liste du jour absente");
+  if (/\blibres?\b/.test(await page.getByRole("group", { name: "Coiffeuses aujourd'hui" }).count() ? "libres" : "")) throw new Error("compteurs affichés sur un autre jour");
+  await pasDeDefilementHorizontal("autre jour");
+  await page.getByRole("button", { name: "Aujourd'hui" }).click();
+  await attendre(() => !location.search, "retour à aujourd'hui impossible");
+});
+
 await verifier("La démo de réservation existante fonctionne toujours", async () => {
   await page.goto(`${BASE}/`);
   await page.locator("h1").first().waitFor();
